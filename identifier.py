@@ -1,7 +1,7 @@
 # identifier.py
 """
-PDF 문서 내에서 워터마크로 의심되는 객체를 식별하는 함수들을 포함하는 모듈입니다.
-각 함수는 fitz.Document 객체를 입력받아 워터마크 후보의 xref 리스트를 반환합니다.
+This module contains functions for identifying objects suspected of being watermarks in a PDF document.
+Each function takes a fitz.Document object as input and returns a list of xrefs of watermark candidates.
 """
 
 import fitz  # PyMuPDF
@@ -9,24 +9,24 @@ from collections import defaultdict
 from typing import List, Dict, Any
 
 # -----------------------------------------------------------------------------
-# --- 기본 워터마크 식별 전략: 공통성 기반 탐지 ---
+# --- Basic Watermark Identification Strategy: Commonality-Based Detection ---
 # -----------------------------------------------------------------------------
 
 def find_by_commonality(doc: fitz.Document, min_page_ratio: float = 0.8) -> List[int]:
     """
-    문서의 여러 페이지에 걸쳐 공통적으로 나타나는 이미지를 워터마크로 식별합니다.
-    가장 안정적이고 일반적인 워터마크 탐지 방법입니다.
+    Identifies images that appear on multiple pages of a document as watermarks.
+    This is the most stable and common method for detecting watermarks.
 
     Args:
-        doc (fitz.Document): 분석할 PyMuPDF 문서 객체.
-        min_page_ratio (float): 이미지가 워터마크로 간주되기 위해
-                                나타나야 하는 최소 페이지 비율. (기본값: 0.8)
+        doc (fitz.Document): The PyMuPDF document object to be analyzed.
+        min_page_ratio (float): The minimum page ratio an image must appear on
+                                to be considered a watermark. (Default: 0.8)
 
     Returns:
-        List[int]: 워터마크로 의심되는 이미지 객체의 xref 리스트.
+        List[int]: A list of xrefs of image objects suspected of being watermarks.
     """
     if not isinstance(doc, fitz.Document):
-        raise TypeError("doc 인자는 fitz.Document 객체여야 합니다.")
+        raise TypeError("The doc argument must be a fitz.Document object.")
     
     total_pages = len(doc)
     if total_pages == 0:
@@ -34,57 +34,57 @@ def find_by_commonality(doc: fitz.Document, min_page_ratio: float = 0.8) -> List
 
     image_counts = defaultdict(int)
 
-    # 1. 각 페이지를 순회하며 이미지 xref의 등장 횟수를 계산합니다.
+    # 1. Iterate through each page and count the occurrences of image xrefs.
     for page in doc:
-        # 한 페이지에 동일 이미지가 여러 번 사용되어도 한 번만 카운트하기 위해 set 사용
+        # Use a set to count an image only once per page, even if it appears multiple times
         xrefs_on_page = {img[0] for img in page.get_images(full=True)}
         for xref in xrefs_on_page:
             image_counts[xref] += 1
             
-    # 2. 최소 등장 페이지 수를 계산합니다.
-    #    (예: 10페이지 문서에 0.8 비율이면 8페이지 이상 등장해야 함)
+    # 2. Calculate the minimum number of pages an image must appear on.
+    #    (e.g., for a 10-page document with a 0.8 ratio, it must appear on at least 8 pages)
     min_pages = max(1, int(total_pages * min_page_ratio))
 
-    # 3. 최소 페이지 수 이상 등장한 이미지 xref만 필터링하여 반환합니다.
+    # 3. Filter and return only the image xrefs that have appeared on at least the minimum number of pages.
     common_xrefs = [xref for xref, count in image_counts.items() if count >= min_pages]
     
-    print(f"총 {total_pages} 페이지 중 {min_pages} 페이지 이상 등장한 이미지 탐색...")
-    print(f"발견된 공통 이미지 xref: {common_xrefs}")
+    print(f"Searching for images that appear on at least {min_pages} of {total_pages} pages...")
+    print(f"Found common image xrefs: {common_xrefs}")
     
     return common_xrefs
 
 
 # -----------------------------------------------------------------------------
-# --- 확장/대안 식별 전략 (향후 구현을 위한 예시) ---
+# --- Extended/Alternative Identification Strategies (Examples for future implementation) ---
 # -----------------------------------------------------------------------------
 
 def find_by_transparency(doc: fitz.Document) -> List[int]:
     """
-    (향후 구현) 투명도(alpha) 값을 가진 이미지를 워터마크 후보로 식별합니다.
-    워터마크는 종종 반투명하게 처리되기 때문에 유효한 전략이 될 수 있습니다.
+    (Future implementation) Identifies images with transparency (alpha) values as watermark candidates.
+    This can be an effective strategy as watermarks are often semi-transparent.
     """
-    print("참고: 투명도 기반 식별 기능은 아직 구현되지 않았습니다.")
-    # 예시 로직:
-    # 1. 모든 ExtGState 객체를 순회
-    # 2. /ca 또는 /CA 값이 1.0 미만인 ExtGState를 찾음
-    # 3. 해당 ExtGState를 사용하는 이미지 객체의 xref를 수집
+    print("Note: Transparency-based identification is not yet implemented.")
+    # Example logic:
+    # 1. Iterate through all ExtGState objects
+    # 2. Find ExtGState with /ca or /CA values less than 1.0
+    # 3. Collect the xrefs of the image objects that use that ExtGState
     return []
 
 def find_text_watermarks(doc: fitz.Document, min_page_ratio: float = 0.8) -> List[Dict[str, Any]]:
     """
-    (향후 구현) 여러 페이지에 걸쳐 동일한 위치에 반복적으로 나타나는 텍스트를
-    워터마크로 식별합니다.
+    (Future implementation) Identifies text that appears repeatedly in the same position
+    on multiple pages as a watermark.
     """
-    print("참고: 텍스트 기반 워터마크 식별 기능은 아직 구현되지 않았습니다.")
-    # 예시 로직:
-    # 1. 모든 페이지에서 텍스트 블록과 위치(bbox) 정보를 추출
-    # 2. 내용과 위치가 거의 동일한 텍스트 블록이 몇 페이지에 걸쳐 나타나는지 카운트
-    # 3. min_page_ratio를 충족하는 텍스트 블록 정보를 반환
+    print("Note: Text-based watermark identification is not yet implemented.")
+    # Example logic:
+    # 1. Extract text blocks and their positions (bbox) from all pages
+    # 2. Count how many pages have text blocks with almost identical content and position
+    # 3. Return information about the text blocks that meet the min_page_ratio
     return []
 
 
 # -----------------------------------------------------------------------------
-# --- 메인 식별 함수 (전략 선택) ---
+# --- Main Identification Function (Strategy Selection) ---
 # -----------------------------------------------------------------------------
 
 def find_watermark_candidates(
@@ -93,20 +93,20 @@ def find_watermark_candidates(
     **kwargs
 ) -> List[int]:
     """
-    지정된 전략을 사용하여 워터마크 후보를 식별하는 메인 함수입니다.
+    This is the main function that identifies watermark candidates using a specified strategy.
 
     Args:
-        doc (fitz.Document): 분석할 PyMuPDF 문서 객체.
-        strategy (str): 사용할 식별 전략.
-                        'commonality' (기본값), 'transparency' 등.
-        **kwargs: 각 전략에 필요한 추가 인자들.
-                  (예: commonality 전략의 min_page_ratio)
+        doc (fitz.Document): The PyMuPDF document object to be analyzed.
+        strategy (str): The identification strategy to use.
+                        'commonality' (default), 'transparency', etc.
+        **kwargs: Additional arguments required for each strategy.
+                  (e.g., min_page_ratio for the commonality strategy)
 
     Returns:
-        List[int]: 식별된 워터마크 후보의 xref 리스트.
+        List[int]: A list of xrefs of the identified watermark candidates.
     
     Raises:
-        ValueError: 지원되지 않는 전략 이름이 주어질 경우 발생.
+        ValueError: If an unsupported strategy name is given.
     """
     if strategy == 'commonality':
         min_page_ratio = kwargs.get('min_page_ratio', 0.8)
@@ -115,10 +115,9 @@ def find_watermark_candidates(
     elif strategy == 'transparency':
         return find_by_transparency(doc)
     
-    # 나중에 다른 전략을 추가할 수 있습니다.
+    # You can add other strategies later.
     # elif strategy == 'text':
     #     return find_text_watermarks(doc, **kwargs)
     
     else:
-        raise ValueError(f"알 수 없는 식별 전략입니다: {strategy}")
-
+        raise ValueError(f"Unknown identification strategy: {strategy}")

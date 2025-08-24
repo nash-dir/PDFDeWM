@@ -4,22 +4,22 @@ from pathlib import Path
 import threading
 import queue
 
-# 필수 라이브러리: PyMuPDF, Pillow
+# Required libraries: PyMuPDF, Pillow
 # pip install PyMuPDF pillow
 try:
     from PIL import Image, ImageTk
 except ImportError:
     messagebox.showerror(
-        "라이브러리 오류",
-        "Pillow 라이브러리가 필요합니다.\n'pip install pillow' 명령어로 설치해주세요."
+        "Library Error",
+        "Pillow library is required.\nPlease install it using the command: 'pip install pillow'"
     )
     exit()
 
-# --- 핵심 로직 모듈 임포트 ---
+# --- Import Core Logic Module ---
 import core 
 
 class App(tk.Tk):
-    """PDF 워터마크 제거 GUI 애플리케이션 메인 클래스"""
+    """Main class for the PDF Watermark Remover GUI application."""
 
     def __init__(self):
         super().__init__()
@@ -27,27 +27,27 @@ class App(tk.Tk):
         self.geometry("800x700")
         self.minsize(600, 500)
 
-        # --- 데이터 관리 ---
+        # --- Data Management ---
         self.input_files = []
         self.output_dir = ""
         self.watermark_candidates = {}
         self.task_queue = queue.Queue()
 
-        # --- UI 구성 ---
+        # --- UI Setup ---
         self._setup_ui()
 
-        # --- 주기적 작업 큐 확인 ---
+        # --- Periodically check the task queue ---
         self.after(100, self.process_queue)
 
     def _setup_ui(self):
-        """애플리케이션의 UI 위젯들을 설정합니다."""
-        # --- 1. 상단 프레임 (경로 지정) ---
+        """Sets up the UI widgets for the application."""
+        # --- 1. Top Frame (Path Specification) ---
         top_frame = ttk.Frame(self, padding="10")
         top_frame.pack(fill="x", side="top")
         top_frame.columnconfigure(1, weight=1)
 
-        ttk.Button(top_frame, text="파일 추가", command=self.add_files).grid(row=0, column=0, padx=(0, 5))
-        ttk.Button(top_frame, text="폴더 추가", command=self.add_folder).grid(row=1, column=0, padx=(0, 5))
+        ttk.Button(top_frame, text="Add Files", command=self.add_files).grid(row=0, column=0, padx=(0, 5))
+        ttk.Button(top_frame, text="Add Folder", command=self.add_folder).grid(row=1, column=0, padx=(0, 5))
         
         self.file_listbox = tk.Listbox(top_frame, height=4, selectmode="extended")
         self.file_listbox.grid(row=0, column=1, rowspan=2, sticky="ew")
@@ -55,31 +55,31 @@ class App(tk.Tk):
         list_scroll.grid(row=0, column=2, rowspan=2, sticky="ns")
         self.file_listbox.config(yscrollcommand=list_scroll.set)
 
-        ttk.Label(top_frame, text="저장 폴더:").grid(row=2, column=0, sticky="w", pady=(10, 0))
+        ttk.Label(top_frame, text="Output Folder:").grid(row=2, column=0, sticky="w", pady=(10, 0))
         self.output_dir_entry = ttk.Entry(top_frame)
         self.output_dir_entry.grid(row=2, column=1, sticky="ew", pady=(10, 0))
-        ttk.Button(top_frame, text="찾아보기", command=self.select_output_dir).grid(row=2, column=2, sticky="e", pady=(10, 0), padx=(5,0))
+        ttk.Button(top_frame, text="Browse", command=self.select_output_dir).grid(row=2, column=2, sticky="e", pady=(10, 0), padx=(5,0))
 
         action_frame = ttk.Frame(top_frame)
         action_frame.grid(row=3, column=0, columnspan=3, pady=(10, 0))
-        self.scan_button = ttk.Button(action_frame, text="선택 파일 스캔", command=self.start_scan)
+        self.scan_button = ttk.Button(action_frame, text="Scan Selected Files", command=self.start_scan)
         self.scan_button.pack(side="left", padx=5)
-        self.remove_button = ttk.Button(action_frame, text="워터마크 제거 실행", command=self.start_removal, state="disabled")
+        self.remove_button = ttk.Button(action_frame, text="Remove Watermarks", command=self.start_removal, state="disabled")
         self.remove_button.pack(side="left", padx=5)
 
-        # --- 3. 하단 프레임 (진행 상태) ---
+        # --- 3. Bottom Frame (Progress Status) ---
         bottom_frame = ttk.Frame(self, padding="10")
         bottom_frame.pack(fill="x", side="bottom")
         bottom_frame.columnconfigure(0, weight=1)
 
-        self.status_label = ttk.Label(bottom_frame, text="준비 완료.")
+        self.status_label = ttk.Label(bottom_frame, text="Ready.")
         self.status_label.grid(row=0, column=0, columnspan=2, sticky="w")
         self.progress_bar = ttk.Progressbar(bottom_frame, orient="horizontal", mode="determinate")
         self.progress_bar.grid(row=1, column=0, sticky="ew", pady=(5, 0))
         self.percent_label = ttk.Label(bottom_frame, text="0%")
         self.percent_label.grid(row=1, column=1, sticky="w", padx=(5, 0), pady=(5, 0))
 
-        # --- 2. 중단 프레임 (썸네일) ---
+        # --- 2. Middle Frame (Thumbnails) ---
         mid_frame = ttk.Frame(self, padding=(10, 0, 10, 10))
         mid_frame.pack(fill="both", expand=True)
         
@@ -93,16 +93,16 @@ class App(tk.Tk):
         self.thumbnail_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
         self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfig(self.canvas_window, width=e.width - 8))
 
-    # --- UI 이벤트 핸들러 및 헬퍼 ---
+    # --- UI Event Handlers and Helpers ---
     def add_files(self):
-        files = filedialog.askopenfilenames(title="PDF 파일 선택", filetypes=[("PDF files", "*.pdf")])
+        files = filedialog.askopenfilenames(title="Select PDF files", filetypes=[("PDF files", "*.pdf")])
         for file in files:
             if file not in self.input_files:
                 self.input_files.append(file)
                 self.file_listbox.insert("end", Path(file).name)
 
     def add_folder(self):
-        folder = filedialog.askdirectory(title="PDF가 포함된 폴더 선택")
+        folder = filedialog.askdirectory(title="Select a folder containing PDFs")
         if folder:
             for file in sorted(Path(folder).glob("*.pdf")):
                 file_str = str(file)
@@ -111,22 +111,22 @@ class App(tk.Tk):
                     self.file_listbox.insert("end", file.name)
 
     def select_output_dir(self):
-        directory = filedialog.askdirectory(title="결과를 저장할 폴더 선택")
+        directory = filedialog.askdirectory(title="Select a folder to save the results")
         if directory:
             self.output_dir = directory
             self.output_dir_entry.delete(0, "end")
             self.output_dir_entry.insert(0, self.output_dir)
 
-    # --- 스레드 및 비동기 작업 관리 ---
+    # --- Thread and Asynchronous Task Management ---
     def start_scan(self):
         if not self.input_files:
-            messagebox.showwarning("파일 없음", "스캔할 PDF 파일을 먼저 추가해주세요.")
+            messagebox.showwarning("No Files", "Please add PDF files to scan first.")
             return
 
         self.clear_thumbnails()
         self.scan_button.config(state="disabled")
         self.remove_button.config(state="disabled")
-        self.status_label.config(text="워터마크 후보 스캔 중...")
+        self.status_label.config(text="Scanning for watermark candidates...")
         self.progress_bar["value"] = 0
         self.percent_label.config(text="0%")
 
@@ -135,7 +135,7 @@ class App(tk.Tk):
     def start_removal(self):
         selected_xrefs = [xref for xref, data in self.watermark_candidates.items() if data['var'].get()]
         if not selected_xrefs:
-            messagebox.showwarning("선택 없음", "제거할 워터마크 이미지를 하나 이상 선택해주세요.")
+            messagebox.showwarning("No Selection", "Please select at least one watermark image to remove.")
             return
         if not self.output_dir or not Path(self.output_dir).is_dir():
             self.select_output_dir()
@@ -152,21 +152,21 @@ class App(tk.Tk):
                 if task[0] == 'candidate_found':
                     self.add_thumbnail(*task[1:])
                 elif task[0] == 'scan_complete':
-                    self.status_label.config(text=f"스캔 완료. {task[1]}개의 워터마크 후보 발견.")
+                    self.status_label.config(text=f"Scan complete. {task[1]} watermark candidates found.")
                     self.scan_button.config(state="normal")
                     if task[1] > 0: self.remove_button.config(state="normal")
                 elif task[0] == 'removal_progress':
                     _, n, m = task
-                    msg = f"파일 처리 중... ({n}/{m})"
+                    msg = f"Processing files... ({n}/{m})"
                     self.status_label.config(text=msg)
                     progress = int((n / m) * 100)
                     self.progress_bar["value"] = progress
                     self.percent_label.config(text=f"{progress}%")
                 elif task[0] == 'removal_complete':
-                    self.status_label.config(text="워터마크 제거 완료!")
+                    self.status_label.config(text="Watermark removal complete!")
                     self.progress_bar["value"] = 100
                     self.percent_label.config(text="100%")
-                    messagebox.showinfo("완료", "선택된 워터마크가 모두 제거되었습니다.")
+                    messagebox.showinfo("Complete", "All selected watermarks have been removed.")
                     self.scan_button.config(state="normal")
                     self.remove_button.config(state="normal")
         except queue.Empty:
@@ -174,10 +174,10 @@ class App(tk.Tk):
         finally:
             self.after(100, self.process_queue)
 
-    # --- 워커 스레드 로직 (Core 모듈 호출) ---
+    # --- Worker Thread Logic (Calling Core Module) ---
     def scan_worker(self):
-        """[리팩토링됨] core 모듈을 호출하여 워터마크 후보를 스캔합니다."""
-        # core.scan_files_for_watermarks는 후보 정보를 담은 딕셔너리를 반환
+        """[Refactored] Calls the core module to scan for watermark candidates."""
+        # core.scan_files_for_watermarks returns a dictionary containing candidate information
         candidates = core.scan_files_for_watermarks(self.input_files, min_page_ratio=0.5)
         
         for xref, data in candidates.items():
@@ -186,17 +186,17 @@ class App(tk.Tk):
         self.task_queue.put(('scan_complete', len(candidates)))
 
     def removal_worker(self, xrefs_to_remove):
-        """[리팩토링됨] core 모듈을 호출하여 워터마크를 제거합니다."""
+        """[Refactored] Calls the core module to remove watermarks."""
         total_files = len(self.input_files)
-        # GUI 업데이트를 위해 진행 상황을 큐에 넣는 로직은 유지
+        # Keep the logic for putting progress updates in the queue for the GUI
         for i, file_path in enumerate(self.input_files):
             self.task_queue.put(('removal_progress', i + 1, total_files))
-            # 실제 파일 처리 로직은 core 모듈에 위임
+            # Delegate the actual file processing logic to the core module
             core.process_and_remove_watermarks([file_path], self.output_dir, xrefs_to_remove)
         
         self.task_queue.put(('removal_complete',))
 
-    # --- 썸네일 UI 헬퍼 ---
+    # --- Thumbnail UI Helper ---
     def clear_thumbnails(self):
         for widget in self.thumbnail_frame.winfo_children():
             widget.destroy()
