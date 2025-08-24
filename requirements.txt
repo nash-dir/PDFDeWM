@@ -1,0 +1,9 @@
+# requirements.txt
+
+# PDF 파일을 읽고 수정하는 핵심 라이브러리
+
+PyMuPDF
+
+# GUI에서 이미지 썸네일을 처리하기 위한 라이브러리
+
+Pillow
