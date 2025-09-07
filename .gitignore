@@ -1,0 +1,56 @@
+# .gitignore
+
+# -----------------------------------------------------------------------------
+# Python - Bytecode, Cache, and Distribution
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+*.whl
+debug.py
+
+# -----------------------------------------------------------------------------
+# Virtual Environments
+# -----------------------------------------------------------------------------
+.env
+.venv
+env/
+venv/
+ENV/
+VENV/
+pip-freeze.txt
+pip-selfcheck.json
+
+# -----------------------------------------------------------------------------
+# IDE and Editor specific files
+# -----------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# -----------------------------------------------------------------------------
+# Operating System specific files
+# -----------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+
+# -----------------------------------------------------------------------------
+# Project Specific Files
+# -----------------------------------------------------------------------------
+# Jupyter Notebook files used in initial development
+*.ipynb
+
+# Do not commit PDF files used for testing or resulting PDF files to the repository
+# Example: watermark_full.pdf, watermark_full_removed.pdf, etc.
+# To ignore all PDF files, uncomment the line below.
+# *.pdf
+
+# Text dump files generated for debugging et al.
+*_dump.txt
+suggestions.md
