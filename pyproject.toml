@@ -6,20 +6,20 @@ build-backend = "setuptools.build_meta"
 # --- Project Metadata ---
 [project]
 name = "pdfdewm"
-version = "1.0.0" # 정식 출시를 위해 버전을 1.0.0으로 변경
+version = "1.0.0" 
 authors = [
   { name="nash-dir", email="hyunsan194@gmail.com" },
 ]
 description = "A GUI tool to easily remove watermarks from PDF files using Tkinter."
 readme = "README.md"
 requires-python = ">=3.8"
-license = { file="license.txt" } # license.txt 파일을 명시
+license = { file="license.txt" } 
 keywords = ["pdf", "watermark", "remove", "gui", "tkinter", "PyMuPDF", "Pillow"]
 # Classifiers for PyPI
 classifiers = [
-    "Development Status :: 5 - Production/Stable", # 1.0 버전에 맞게 변경
+    "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)", # 정확한 라이선스로 수정
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)", 
     "Operating System :: OS Independent",
     "Topic :: Utilities",
     "Environment :: Win32 (MS Windows)",
@@ -42,9 +42,10 @@ dependencies = [
 "Bug Tracker" = "https://github.com/nash-dir/PDFDeWM/issues"
 
 # --- Setuptools Configuration ---
-# 프로젝트 루트에서 'pdfdewm'이라는 패키지를 찾도록 설정
-# (GUI.py, core.py 등을 pdfdewm 폴더로 옮겨야 함)
-# 만약 단일 파일로 배포할 경우 이 섹션은 다르게 구성해야 합니다.
-# [tool.setuptools.packages.find]
-# where = ["."]
-
+[tool.setuptools.py-modules]
+py-modules = [
+    "GUI",
+    "core",
+    "identifier",
+    "editor",
+]
