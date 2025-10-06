@@ -45,6 +45,7 @@ Thumbs.db
 # -----------------------------------------------------------------------------
 # Jupyter Notebook files used in initial development
 *.ipynb
+working/
 
 # Do not commit PDF files used for testing or resulting PDF files to the repository
 # Example: watermark_full.pdf, watermark_full_removed.pdf, etc.
