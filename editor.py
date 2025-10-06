@@ -19,7 +19,8 @@
 
 import fitz  # PyMuPDF
 import re
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Any
+from collections import defaultdict
 
 
 def map_xrefs_to_names(doc: fitz.Document, xrefs: List[int]) -> Dict[int, str]:
@@ -133,10 +134,43 @@ def delete_objects_and_smasks(doc: fitz.Document, xrefs: List[int]) -> int:
     return len(deleted_xrefs)
 
 
-def remove_watermarks_by_xrefs(doc: fitz.Document, image_xrefs: List[int]):
-    """Executes the full watermark removal process on a document.
+def add_text_redactions(doc: fitz.Document, text_candidates: List[Dict[str, Any]]):
+    """Adds redaction annotations to cover text watermarks.
 
-    This function orchestrates the three main steps:
+    This function does not permanently remove the text. It adds the redaction
+    "markings" to the document. A subsequent call to `doc.apply_redactions()`
+    is required to make the removal permanent.
+
+    Args:
+        doc: The PyMuPDF document to modify.
+        text_candidates: A list of dictionaries, where each dictionary contains
+                         the 'page' number and 'bbox' (fitz.Rect) for a text
+                         watermark to be removed.
+    """
+    if not text_candidates:
+        return
+
+    print(f"Adding redactions for {len(text_candidates)} text watermarks.")
+    
+    # Group candidates by page for efficiency
+    candidates_by_page = defaultdict(list)
+    for candidate in text_candidates:
+        candidates_by_page[candidate['page']].append(candidate['bbox'])
+
+    for page_num, bboxes in candidates_by_page.items():
+        try:
+            page = doc.load_page(page_num)
+            for bbox in bboxes:
+                page.add_redact_annot(bbox, fill=(1, 1, 1)) # Fill with white
+            print(f"Added {len(bboxes)} redaction(s) on page {page_num + 1}.")
+        except Exception as e:
+            print(f"Error adding redaction on page {page_num + 1}: {e}")
+
+
+def remove_watermarks_by_xrefs(doc: fitz.Document, image_xrefs: List[int]):
+    """Executes the full image watermark removal process on a document.
+
+    This function orchestrates the three main steps for IMAGE watermarks:
     1. Map image xrefs to their names.
     2. Clean the names from the page content streams.
     3. Delete the image and smask objects from the PDF.
@@ -146,11 +180,11 @@ def remove_watermarks_by_xrefs(doc: fitz.Document, image_xrefs: List[int]):
         image_xrefs: A list of watermark image xrefs to remove.
     """
     if not image_xrefs:
-        print("No watermark xrefs provided to remove.")
+        print("No image watermark xrefs provided to remove.")
         return
 
     print("-" * 20)
-    print(f"Starting removal of {len(image_xrefs)} selected watermark objects.")
+    print(f"Starting removal of {len(image_xrefs)} selected image watermark objects.")
     
     name_map = map_xrefs_to_names(doc, image_xrefs)
     
@@ -161,5 +195,5 @@ def remove_watermarks_by_xrefs(doc: fitz.Document, image_xrefs: List[int]):
     
     delete_objects_and_smasks(doc, image_xrefs)
     
-    print("Watermark removal process complete.")
+    print("Image watermark removal process complete.")
     print("-" * 20)

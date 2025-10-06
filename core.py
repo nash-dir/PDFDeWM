@@ -28,72 +28,111 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple
 import shutil
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 import identifier
 import editor
 
 
 def scan_files_for_watermarks(
-    file_paths: List[str], 
-    min_page_ratio: float = 0.5
-) -> Dict[Tuple[str, int], Dict[str, Any]]:
-    """Scans multiple PDF files to find and extract watermark candidates.
+    file_paths: List[str],
+    min_page_ratio: float,
+    text_keywords: List[str] = None
+) -> Dict[Tuple, Dict[str, Any]]:
+    """Scans multiple PDF files to find both image and text watermark candidates.
 
-    This function iterates through a list of file paths, uses the `identifier`
-    module to find potential watermarks, and extracts them as PIL Images.
-
-    Args:
-        file_paths: A list of absolute paths to the PDF files to scan.
-        min_page_ratio: The minimum fraction of pages an image must appear on
-                        to be considered a watermark.
-
-    Returns:
-        A dictionary where keys are (file_path, xref) tuples and values are
-        dictionaries containing the extracted 'pil_img'.
+    This function finds common images and searches for text blocks containing
+    specified keywords. It extracts/generates thumbnails for all candidates.
     """
-    all_candidates: Dict[Tuple[str, int], Dict[str, Any]] = {}
-    
+    all_candidates: Dict[Tuple, Dict[str, Any]] = {}
+
+    if text_keywords is None:
+        text_keywords = []
+
     for file_path in file_paths:
         try:
             doc = fitz.open(file_path)
-            
+
+            # 1. Find image watermarks (unchanged)
             common_xrefs = identifier.find_by_commonality(doc, min_page_ratio)
-            
             for xref in common_xrefs:
-                candidate_key = (file_path, xref)
+                candidate_key = ('image', file_path, xref)
                 if candidate_key not in all_candidates:
                     pix = fitz.Pixmap(doc, xref)
                     mode = "RGBA" if pix.alpha else "RGB"
                     pil_img = Image.frombytes(mode, (pix.width, pix.height), pix.samples)
+                    all_candidates[candidate_key] = {
+                        'type': 'image',
+                        'pil_img': pil_img,
+                        'xref': xref,
+                        'source': Path(file_path).name
+                    }
+
+
+            # 2. Find text watermarks by checking entire text blocks
+            if text_keywords:
+                for page_num, page in enumerate(doc):
+                    # Get all text blocks from the page
+                    # A block is a tuple: (x0, y0, x1, y1, "text...", block_no, type)
+                    text_blocks = page.get_text("blocks")
                     
-                    all_candidates[candidate_key] = {'pil_img': pil_img}
+                    for block in text_blocks:
+                        block_text = block[4] # The full text content of the block
+                        block_rect = fitz.Rect(block[:4]) # The bounding box of the block
+
+                        for keyword in text_keywords:
+                            if keyword in block_text:
+                                # Create a unique key for the entire block
+                                bbox_tuple = tuple(round(c, 2) for c in block_rect)
+                                candidate_key = ('text', file_path, page_num, bbox_tuple)
+
+                                if candidate_key not in all_candidates:
+                                    # Generate a thumbnail showing the full block text (truncated)
+                                    text_img = Image.new('RGB', (200, 50), color='white')
+                                    draw = ImageDraw.Draw(text_img)
+                                    try:
+                                        font = ImageFont.truetype("arial.ttf", 15)
+                                    except IOError:
+                                        font = ImageFont.load_default()
+                                    
+                                    # Show the beginning of the block text in the thumbnail
+                                    display_text = (block_text[:25] + '...') if len(block_text) > 25 else block_text
+                                    draw.text((10, 10), display_text.replace('\n', ' '), fill='black', font=font)
+                                    
+                                    all_candidates[candidate_key] = {
+                                        'type': 'text',
+                                        'pil_img': text_img,
+                                        'text': keyword, # The keyword that was found
+                                        'full_text': block_text, # The full text of the block
+                                        'page': page_num,
+                                        'bbox': block_rect,
+                                        'source': Path(file_path).name
+                                    }
+                                # Once a keyword matches a block, move to the next block
+                                break 
             doc.close()
-        except (FileNotFoundError, RuntimeError) as e:
+        except Exception as e:
             print(f"Error while scanning file ({Path(file_path).name}): {e}")
             continue
-            
+
     return all_candidates
 
 
 def process_and_remove_watermarks(
     file_path: str, 
     output_dir: str, 
-    xrefs_to_remove: List[int],
+    candidates_to_remove: Dict[str, List[Any]],
     suffix: str,
     overwrite: bool = False
 ):
-    """Removes selected watermarks from a file and saves the result.
-
-    Opens a PDF, invokes the `editor` module to remove the specified
-    watermark cross-references, and saves the modified PDF to the
-    output directory.
+    """Removes selected image and text watermarks from a file and saves it.
 
     Args:
         file_path: The absolute path to the PDF file to process.
         output_dir: The directory where the modified file will be saved.
-        xrefs_to_remove: A list of integer xrefs of the watermarks to remove.
-        suffix: The string to append to the output filename (before extension).
+        candidates_to_remove: A dictionary with 'image' and 'text' keys,
+                              containing lists of xrefs and text info to remove.
+        suffix: The string to append to the output filename.
         overwrite: If True, overwrite the output file if it already exists.
     """
     output_path = Path(output_dir)
@@ -104,8 +143,26 @@ def process_and_remove_watermarks(
     doc = None
     try:
         doc = fitz.open(file_path)
-        editor.remove_watermarks_by_xrefs(doc, xrefs_to_remove)
         
+        # 1. Remove image watermarks
+        image_xrefs = candidates_to_remove.get('image', [])
+        if image_xrefs:
+            editor.remove_watermarks_by_xrefs(doc, image_xrefs)
+
+        # 2. Add redactions for text watermarks and apply them per page
+        text_candidates = candidates_to_remove.get('text', [])
+        if text_candidates:
+            # First, add all redaction annotations to the document
+            editor.add_text_redactions(doc, text_candidates)
+            
+            # Then, find which pages were affected
+            affected_pages = sorted(list({cand['page'] for cand in text_candidates}))
+            
+            # Finally, apply redactions on each affected page
+            for page_num in affected_pages:
+                doc[page_num].apply_redactions()
+            print(f"Permanently applied text redactions on {len(affected_pages)} page(s).")
+
         output_filename = output_path / f"{Path(file_path).stem}{suffix}.pdf"
         
         if output_filename.exists() and not overwrite:
@@ -115,7 +172,7 @@ def process_and_remove_watermarks(
         doc.save(str(output_filename), garbage=4, deflate=True)
         print(f"Saved processed file to '{output_filename}'.")
 
-    except (FileNotFoundError, RuntimeError) as e:
+    except (FileNotFoundError, RuntimeError, Exception) as e:
         print(f"Error while processing file ({Path(file_path).name}): {e}")
     finally:
         if doc:
