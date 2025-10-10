@@ -16,7 +16,7 @@
 
 
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, messagebox
 from pathlib import Path
 import threading
 import queue
@@ -36,6 +36,7 @@ except ImportError:
     ImageTk = None
     ImageDraw = None
 
+from utils import FileManager, ThumbnailManager
 import core
 
 
@@ -76,15 +77,9 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        if not Image or not ImageTk or not ImageDraw:
-            messagebox.showerror(
-                "Library Error",
-                "Pillow library is required.\nPlease install it using: 'pip install pillow'"
-            )
-            self.destroy()
-            return
-
         self.core = core
+        self.file_manager = FileManager()
+        self.thumbnail_manager = ThumbnailManager()
 
         self.title("PDF Watermark Remover")
         self.geometry("800x800") 
@@ -267,17 +262,17 @@ class App(tk.Tk):
 
 
     def add_files(self):
-        """Opens a dialog to add multiple PDF files to the input list."""
-        files = filedialog.askopenfilenames(title="Select PDF files", filetypes=[("PDF files", "*.pdf")])
-        for file in files:
+        """Adds selected PDF files to the input list."""
+        new_files = self.file_manager.ask_for_files()
+        for file in new_files:
             if file not in self.input_files:
                 self.input_files.append(file)
                 self.file_listbox.insert("end", Path(file).name)
         self._check_overwrite_warning()
 
     def add_folder(self):
-        """Opens a dialog to add all PDFs from a folder to the input list."""
-        folder = filedialog.askdirectory(title="Select a folder containing PDFs")
+        """Adds all PDFs from a folder to the input list."""
+        folder = self.file_manager.ask_for_folder()
         if folder:
             for file in sorted(Path(folder).glob("*.pdf")):
                 file_str = str(file)
@@ -297,8 +292,8 @@ class App(tk.Tk):
         self._check_overwrite_warning()
 
     def select_output_dir(self):
-        """Opens a dialog to select the output directory."""
-        directory = filedialog.askdirectory(title="Select a folder to save the results")
+        """Selects the output directory."""
+        directory = self.file_manager.ask_for_output_dir()
         if directory:
             self.output_dir = directory
             self.output_dir_entry.delete(0, "end")
@@ -454,16 +449,6 @@ class App(tk.Tk):
 
     def add_thumbnail(self, candidate_data: Dict[str, Any], candidate_key: Tuple):
         """Creates and displays a thumbnail for a watermark candidate."""
-        # This import is needed here for unpickling fitz.Rect in frozen apps
-        import fitz
-        
-        pil_img = candidate_data['pil_img']
-        
-        thumbnail_size = (100, 100)
-        img_copy = pil_img.copy()
-        img_copy.thumbnail(thumbnail_size, Image.Resampling.LANCZOS)
-        photo_img = ImageTk.PhotoImage(img_copy)
-
         item_frame = ttk.Frame(self.thumbnail_frame, padding=5, relief="groove", borderwidth=1)
         item_frame.pack(pady=5, padx=5, fill="x")
 
@@ -471,10 +456,17 @@ class App(tk.Tk):
         chk = ttk.Checkbutton(item_frame, variable=var)
         chk.pack(side="left", padx=(0, 10))
 
+        # Create thumbnail using ThumbnailMananger
+        if candidate_data['type'] == 'image':
+            photo_img = self.thumbnail_manager.create_image_thumbnail(candidate_data['pil_img'])
+        else: # type == 'text'
+            full_text = candidate_data.get('full_text', candidate_data['text'])
+            photo_img = self.thumbnail_manager.create_text_thumbnail(full_text)
+
         img_label = ttk.Label(item_frame, image=photo_img)
         img_label.pack(side="left")
 
-        # Build info text based on candidate type
+        # Create Info text
         info_lines = []
         if candidate_data['type'] == 'image':
             info_lines.append(f"Type: Image")
@@ -483,14 +475,14 @@ class App(tk.Tk):
             info_lines.append(f"Type: Text")
             info_lines.append(f"Keyword: \"{candidate_data['text']}\"")
             info_lines.append(f"Page: {candidate_data['page'] + 1}")
-        
+
         info_lines.append(f"Source: {candidate_data['source']}")
         info_text = "\n".join(info_lines)
-        
+
         info_label = ttk.Label(item_frame, text=info_text, justify="left")
         info_label.pack(side="left", padx=10)
 
-        # Update the main dictionary, merging new data with stored data
+        # Store data
         self.watermark_candidates[candidate_key] = candidate_data
         self.watermark_candidates[candidate_key]['img_obj'] = photo_img
         self.watermark_candidates[candidate_key]['var'] = var
