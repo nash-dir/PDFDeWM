@@ -94,12 +94,21 @@ class ThumbnailManager:
         """
         img = Image.new('RGB', size, color='white')
         draw = ImageDraw.Draw(img)
+        font_size = 15
 
         try:
-            # Attempt to use a common font, fallback to default
-            font = ImageFont.truetype("arial.ttf", 15)
+            # 1. Prioritize Malgun Gothic (for Korean & English)
+            font = ImageFont.truetype("malgun.ttf", font_size)
+            print("Using font: malgun.ttf")
         except IOError:
-            font = ImageFont.load_default()
+            try:
+                # 2. Fallback to Arial for general Unicode support
+                font = ImageFont.truetype("arial.ttf", font_size)
+                print("Using font: arial.ttf (Malgun Gothic not found)")
+            except IOError:
+                # 3. Final fallback to the basic default font
+                print("Warning: Neither Malgun Gothic nor Arial found. Using default font.")
+                font = ImageFont.load_default()
 
         # Truncate text if it's too long for the thumbnail
         display_text = (text[:25] + '...') if len(text) > 25 else text
