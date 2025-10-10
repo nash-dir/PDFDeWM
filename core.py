@@ -145,6 +145,57 @@ def process_and_remove_watermarks(
             doc.close()
 
 
+def process_and_remove_watermarks(
+    file_path: str, 
+    output_dir: str, 
+    candidates_to_remove: Dict[str, List[Any]],
+    suffix: str,
+    overwrite: bool = False,
+    sanitize_hidden_text: bool = False
+):
+    """Removes selected watermarks and optionally sanitizes the file."""
+    output_path = Path(output_dir)
+    if not output_path.is_dir():
+        print(f"Error: Output directory '{output_dir}' not found.")
+        return
+
+    doc = None
+    try:
+        doc = fitz.open(file_path)
+        
+        # 1. Remove image watermarks
+        image_xrefs = candidates_to_remove.get('image', [])
+        if image_xrefs:
+            editor.remove_watermarks_by_xrefs(doc, image_xrefs)
+
+        # 2. Add redactions for text watermarks
+        text_candidates = candidates_to_remove.get('text', [])
+        if text_candidates:
+            editor.add_text_redactions(doc, text_candidates)
+        
+        # 3. Apply all pending redactions AND/OR sanitize hidden text using scrub()
+        # The scrub method is efficient for applying redactions.
+        # It can also remove all hidden text if the option is selected.
+        if text_candidates or sanitize_hidden_text:
+            print("Applying redactions and/or sanitizing document...")
+            doc.scrub(redactions=True, hidden_text=sanitize_hidden_text)
+
+        output_filename = output_path / f"{Path(file_path).stem}{suffix}.pdf"
+
+        if output_filename.exists() and not overwrite:
+            print(f"Skipping save: '{output_filename.name}' already exists.")
+            return
+
+        doc.save(str(output_filename), garbage=4, deflate=True)
+        print(f"Saved processed file to '{output_filename}'.")
+
+    except (FileNotFoundError, RuntimeError, Exception) as e:
+        print(f"Error while processing file ({Path(file_path).name}): {e}")
+    finally:
+        if doc:
+            doc.close()
+
+
 def copy_unprocessed_file(file_path: str, output_dir: str, overwrite: bool = False):
     """Copies a file to the output directory without modification."""
     try:
