@@ -30,8 +30,6 @@ import fitz
 try:
     from PIL import Image, ImageTk, ImageDraw
 except ImportError:
-    # This is a fallback for when the script is run directly without Pillow.
-    # The main App class will handle showing a proper error message.
     Image = None
     ImageTk = None
     ImageDraw = None
@@ -41,22 +39,11 @@ import core
 
 
 class QueueLogger:
-    """Redirects stdout/stderr to a queue for thread-safe GUI updates.
-    
-    It buffers text and puts a complete line onto the queue only when a
-    newline character is received.
-    """
     def __init__(self, q: queue.Queue):
-        """Initializes the logger with a queue.
-
-        Args:
-            q: The queue to which log messages will be sent.
-        """
         self.queue = q
         self.buffer = ""
 
     def write(self, text: str):
-        """Writes text to the buffer and sends complete lines to the queue."""
         self.buffer += text
         if '\n' in self.buffer:
             lines = self.buffer.split('\n')
@@ -65,15 +52,12 @@ class QueueLogger:
             self.buffer = lines[-1]
 
     def flush(self):
-        """Flushes any remaining text in the buffer to the queue."""
         if self.buffer:
             self.queue.put(('log', self.buffer + '\n'))
             self.buffer = ""
 
 
 class App(tk.Tk):
-    """Main class for the PDF Watermark Remover GUI application."""
-
     def __init__(self):
         super().__init__()
 
@@ -94,8 +78,8 @@ class App(tk.Tk):
         self.copy_skipped_var = tk.BooleanVar(value=False)
         self.overwrite_var = tk.BooleanVar(value=False)
         self.text_keywords_var = tk.StringVar()
-
         self.scan_threshold_var = tk.IntVar(value=80)
+        self.sanitize_var = tk.BooleanVar(value=False)
 
         self.original_stdout = sys.stdout
         self.original_stderr = sys.stderr
@@ -107,24 +91,20 @@ class App(tk.Tk):
         self.after(100, self.process_queue)
         
     def redirect_logging(self):
-        """Redirects `sys.stdout` and `sys.stderr` to the GUI logger."""
         sys.stdout = self.queue_logger
         sys.stderr = self.queue_logger
 
     def restore_logging(self):
-        """Restores original `sys.stdout` and `sys.stderr`."""
         if hasattr(sys.stdout, 'flush'):
             sys.stdout.flush()
         sys.stdout = self.original_stdout
         sys.stderr = self.original_stderr
 
     def on_closing(self):
-        """Handles the window closing event."""
         self.restore_logging()
         self.destroy()
 
     def _setup_ui(self):
-        """Initializes and places all the widgets in the main window."""
         top_frame = ttk.Frame(self, padding="10")
         top_frame.pack(fill="x", side="top", pady=(0,5))
         top_frame.columnconfigure(1, weight=1)
@@ -161,12 +141,8 @@ class App(tk.Tk):
         ttk.Label(scan_options_frame, text="Image Scan Threshold (%):").pack(side="left", padx=(0, 5))
         
         self.threshold_spinbox = ttk.Spinbox(
-            scan_options_frame,
-            from_=1,
-            to=100,
-            increment=1,
-            textvariable=self.scan_threshold_var,
-            width=5
+            scan_options_frame, from_=1, to=100, increment=1,
+            textvariable=self.scan_threshold_var, width=5
         )
         self.threshold_spinbox.pack(side="left")
 
@@ -175,29 +151,43 @@ class App(tk.Tk):
         self.text_keyword_entry.grid(row=1, column=1, sticky="ew", pady=(5, 0))
 
         self.overwrite_warning_label = ttk.Label(
-            options_container,
-            text="Original input files will be overwritten irreversibly",
-            foreground="red",
-            font=("TkDefaultFont", 9, "bold")
+            options_container, text="Original input files will be overwritten irreversibly",
+            foreground="red", font=("TkDefaultFont", 9, "bold")
         )
         self.overwrite_warning_label.grid(row=2, column=1, sticky="w", padx=0, pady=(2,0))
         self.overwrite_warning_label.grid_remove()
         
+        # Create a container for the action buttons and checkboxes
         action_frame = ttk.Frame(top_frame)
-        action_frame.grid(row=5, column=0, columnspan=3, pady=(10, 0))
-        self.scan_button = ttk.Button(action_frame, text="Scan Selected Files", command=self.start_scan)
-        self.scan_button.pack(side="left", padx=5)
-        self.remove_button = ttk.Button(action_frame, text="Run Watermark Removal", command=self.start_removal, state="disabled")
-        self.remove_button.pack(side="left", padx=5)
+        action_frame.grid(row=5, column=0, columnspan=3, pady=(10, 0), sticky="ew")
+
+        # Left-aligned items
+        left_action_frame = ttk.Frame(action_frame)
+        left_action_frame.pack(side="left")
         
-        self.copy_skipped_checkbox = ttk.Checkbutton(action_frame, text="Copy unprocessed files", variable=self.copy_skipped_var)
-        self.copy_skipped_checkbox.pack(side="left", padx=15, pady=(2,0))
+        self.scan_button = ttk.Button(left_action_frame, text="Scan Selected Files", command=self.start_scan)
+        self.scan_button.pack(side="left", padx=(0, 2))
+        self.remove_button = ttk.Button(left_action_frame, text="Run Watermark Removal", command=self.start_removal, state="disabled")
+        self.remove_button.pack(side="left", padx=2)
         
-        self.overwrite_checkbox = ttk.Checkbutton(action_frame, text="Overwrite existing files", variable=self.overwrite_var, command=self._check_overwrite_warning)
-        self.overwrite_checkbox.pack(side="left", padx=5, pady=(2,0))
+        self.copy_skipped_checkbox = ttk.Checkbutton(left_action_frame, text="Copy unprocessed files", variable=self.copy_skipped_var)
+        self.copy_skipped_checkbox.pack(side="left", padx=7)
+        
+        self.overwrite_checkbox = ttk.Checkbutton(left_action_frame, text="Overwrite existing files", variable=self.overwrite_var, command=self._check_overwrite_warning)
+        self.overwrite_checkbox.pack(side="left", padx=7)
+
+        # Right-aligned item
+        right_action_frame = ttk.Frame(action_frame)
+        right_action_frame.pack(side="right")
+
+        self.sanitize_checkbox = ttk.Checkbutton(
+            right_action_frame, text="Scrub invisible text & OCR layer",
+            variable=self.sanitize_var
+        )
+        self.sanitize_checkbox.pack(side="right")
 
         self.suffix_var.trace_add("write", self._check_overwrite_warning)
-
+        # ... (rest of the UI setup is unchanged)
         bottom_frame = ttk.Frame(self, padding="10")
         bottom_frame.pack(fill="x", side="bottom")
         bottom_frame.columnconfigure(0, weight=1)
@@ -239,7 +229,6 @@ class App(tk.Tk):
 
 
     def _check_overwrite_warning(self, *args):
-        """Shows or hides the overwrite warning label based on user settings."""
         is_suffix_empty = not self.suffix_var.get().strip()
         is_overwrite_checked = self.overwrite_var.get()
         is_dangerous_overwrite = is_suffix_empty and is_overwrite_checked
@@ -262,7 +251,6 @@ class App(tk.Tk):
 
 
     def add_files(self):
-        """Adds selected PDF files to the input list."""
         new_files = self.file_manager.ask_for_files()
         for file in new_files:
             if file not in self.input_files:
@@ -271,7 +259,6 @@ class App(tk.Tk):
         self._check_overwrite_warning()
 
     def add_folder(self):
-        """Adds all PDFs from a folder to the input list."""
         folder = self.file_manager.ask_for_folder()
         if folder:
             for file in sorted(Path(folder).glob("*.pdf")):
@@ -282,17 +269,14 @@ class App(tk.Tk):
         self._check_overwrite_warning()
 
     def remove_selected_files(self):
-        """Removes the selected files from the input list."""
         selected_indices = self.file_listbox.curselection()
-        if not selected_indices:
-            return
+        if not selected_indices: return
         for index in reversed(selected_indices):
             self.input_files.pop(index)
             self.file_listbox.delete(index)
         self._check_overwrite_warning()
 
     def select_output_dir(self):
-        """Selects the output directory."""
         directory = self.file_manager.ask_for_output_dir()
         if directory:
             self.output_dir = directory
@@ -301,7 +285,6 @@ class App(tk.Tk):
             self._check_overwrite_warning()
 
     def start_scan(self):
-        """Starts the watermark scanning process in a separate thread."""
         if not self.input_files:
             messagebox.showwarning("No Files", "Please add PDF files to scan first.")
             return
@@ -313,7 +296,6 @@ class App(tk.Tk):
         self.progress_bar["value"] = 0
         self.percent_label.config(text="0%")
 
-        # Get integer from Spinbox and convert to float ratio for the backend
         scan_threshold_percent = self.scan_threshold_var.get()
         min_page_ratio = scan_threshold_percent / 100.0
         
@@ -327,22 +309,16 @@ class App(tk.Tk):
         ).start()
 
     def start_removal(self):
-        """Starts the watermark removal process in a separate thread."""
         candidates_to_remove = defaultdict(lambda: defaultdict(list))
         
         for key, data in self.watermark_candidates.items():
             if data['var'].get():
-                candidate_type = key[0]
-                file_path = key[1]
-                
+                candidate_type, file_path, *rest = key
                 if candidate_type == 'image':
-                    # For images, the key is ('image', file_path, xref)
-                    xref = key[2]
+                    xref = rest[0]
                     candidates_to_remove[file_path]['image'].append(xref)
                 elif candidate_type == 'text':
-                    # For text, the key is ('text', file_path, page_num, bbox_tuple)
-                    page_num = key[2]
-                    bbox = key[3]
+                    page_num, bbox = rest
                     text_info = {'page': page_num, 'bbox': fitz.Rect(bbox)}
                     candidates_to_remove[file_path]['text'].append(text_info)
 
@@ -350,8 +326,13 @@ class App(tk.Tk):
             self.select_output_dir()
             if not self.output_dir: return
         
-        if not candidates_to_remove and not self.copy_skipped_var.get():
-            messagebox.showwarning("No Action", "No watermarks selected to remove and 'Copy unprocessed files' is disabled.")
+        sanitize = self.sanitize_var.get()
+        if not candidates_to_remove and not self.copy_skipped_var.get() and not sanitize:
+            messagebox.showwarning(
+                "No Action", 
+                "No watermarks selected to remove, 'Copy unprocessed files' is disabled, "
+                "and 'Sanitize' option is off."
+            )
             return
 
         suffix = self.suffix_var.get()
@@ -362,16 +343,12 @@ class App(tk.Tk):
         self.remove_button.config(state="disabled")
         
         args = (
-            self.input_files,
-            candidates_to_remove,
-            suffix,
-            copy_skipped,
-            overwrite
+            self.input_files, candidates_to_remove, suffix,
+            copy_skipped, overwrite, sanitize
         )
         threading.Thread(target=self.removal_worker, args=args, daemon=True).start()
 
     def process_queue(self):
-        """Processes messages from the task queue to update the GUI."""
         try:
             while True:
                 task_type, *payload = self.task_queue.get_nowait()
@@ -382,12 +359,10 @@ class App(tk.Tk):
                     count = payload[0]
                     self.status_label.config(text=f"Scan complete. {count} watermark candidates found.")
                     self.scan_button.config(state="normal")
-                    if count > 0 or self.copy_skipped_var.get():
-                        self.remove_button.config(state="normal")
+                    self.remove_button.config(state="normal") # Always enable after scan
                 elif task_type == 'removal_progress':
                     n, m = payload
-                    msg = f"Processing files... ({n}/{m})"
-                    self.status_label.config(text=msg)
+                    self.status_label.config(text=f"Processing files... ({n}/{m})")
                     progress = int((n / m) * 100)
                     self.progress_bar["value"] = progress
                     self.percent_label.config(text=f"{progress}%")
@@ -405,12 +380,8 @@ class App(tk.Tk):
         finally:
             self.after(100, self.process_queue)
 
-    def scan_worker(self, min_page_ratio: float, text_keywords: List[str]):
-        """Worker function to scan files for watermarks."""
-        # This import needs to be here for the data to be unpickled correctly
-        # if the app is frozen into an executable.
-        import fitz
 
+    def scan_worker(self, min_page_ratio: float, text_keywords: List[str]):
         candidates = self.core.scan_files_for_watermarks(
             self.input_files, 
             min_page_ratio=min_page_ratio,
@@ -420,35 +391,39 @@ class App(tk.Tk):
             self.task_queue.put(('candidate_found', data, key))
         self.task_queue.put(('scan_complete', len(candidates)))
 
+
     def removal_worker(
-        self,
-        all_input_files: List[str],
+        self, all_input_files: List[str],
         candidates_by_file: Dict[str, Dict[str, List]],
-        suffix: str,
-        copy_skipped: bool,
-        overwrite: bool
+        suffix: str, copy_skipped: bool, overwrite: bool,
+        sanitize: bool
     ):
-        """Worker function to remove watermarks and save/copy files."""
         total_files = len(all_input_files)
         for i, file_path in enumerate(all_input_files):
             self.task_queue.put(('removal_progress', i + 1, total_files))
             
-            if file_path in candidates_by_file:
-                to_remove = candidates_by_file[file_path]
-                self.core.process_and_remove_watermarks(file_path, self.output_dir, to_remove, suffix, overwrite=overwrite)
+            # A file should be processed if it has selected watermarks OR if sanitize is on.
+            # It should be copied only if it has no selected watermarks, sanitize is off, AND copy_skipped is on.
+            should_process = (file_path in candidates_by_file) or sanitize
+
+            if should_process:
+                to_remove = candidates_by_file.get(file_path, {})
+                self.core.process_and_remove_watermarks(
+                    file_path, self.output_dir, to_remove, suffix, 
+                    overwrite=overwrite, sanitize_hidden_text=sanitize
+                )
             elif copy_skipped:
                 self.core.copy_unprocessed_file(file_path, self.output_dir, overwrite=overwrite)
 
         self.task_queue.put(('removal_complete',))
 
+
     def clear_thumbnails(self):
-        """Removes all watermark thumbnail widgets from the display."""
         for widget in self.thumbnail_frame.winfo_children():
             widget.destroy()
         self.watermark_candidates.clear()
 
     def add_thumbnail(self, candidate_data: Dict[str, Any], candidate_key: Tuple):
-        """Creates and displays a thumbnail for a watermark candidate."""
         item_frame = ttk.Frame(self.thumbnail_frame, padding=5, relief="groove", borderwidth=1)
         item_frame.pack(pady=5, padx=5, fill="x")
 
@@ -456,17 +431,15 @@ class App(tk.Tk):
         chk = ttk.Checkbutton(item_frame, variable=var)
         chk.pack(side="left", padx=(0, 10))
 
-        # Create thumbnail using ThumbnailMananger
         if candidate_data['type'] == 'image':
             photo_img = self.thumbnail_manager.create_image_thumbnail(candidate_data['pil_img'])
-        else: # type == 'text'
+        else:
             full_text = candidate_data.get('full_text', candidate_data['text'])
             photo_img = self.thumbnail_manager.create_text_thumbnail(full_text)
 
         img_label = ttk.Label(item_frame, image=photo_img)
         img_label.pack(side="left")
 
-        # Create Info text
         info_lines = []
         if candidate_data['type'] == 'image':
             info_lines.append(f"Type: Image")
@@ -482,14 +455,12 @@ class App(tk.Tk):
         info_label = ttk.Label(item_frame, text=info_text, justify="left")
         info_label.pack(side="left", padx=10)
 
-        # Store data
         self.watermark_candidates[candidate_key] = candidate_data
         self.watermark_candidates[candidate_key]['img_obj'] = photo_img
         self.watermark_candidates[candidate_key]['var'] = var
 
 
     def log_message(self, text: str):
-        """Appends a message to the log text box in a thread-safe way."""
         self.log_text.config(state="normal")
         self.log_text.insert("end", text)
         self.log_text.see("end")
