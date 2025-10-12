@@ -124,7 +124,7 @@ def process_and_remove_watermarks(
             # In case file is not included in default path, use default path.
 
             pass
-            
+
     doc = None
     try:
         doc = fitz.open(file_path)
@@ -136,10 +136,14 @@ def process_and_remove_watermarks(
         text_candidates = candidates_to_remove.get('text', [])
         if text_candidates:
             editor.add_text_redactions(doc, text_candidates)
-        
+
         if text_candidates or sanitize_hidden_text:
-            print("Applying redactions and/or sanitizing document...")
-            doc.scrub(redactions=True, hidden_text=sanitize_hidden_text)
+            if sanitize_hidden_text = True:
+                print("Applying redactions and sanitizing hidden texts...")
+                doc.scrub(redactions=True, hidden_text=sanitize_hidden_text)
+            else :
+                print("Applying redactions...")
+                doc.scrub(redactions=True)
 
         if output_filename.exists() and not overwrite:
             print(f"Skipping save: '{output_filename.name}' already exists.")

@@ -189,7 +189,7 @@ class App(tk.Tk):
         right_action_frame.pack(side="right")
 
         self.sanitize_checkbox = ttk.Checkbutton(
-            right_action_frame, text="Scrub invisible text & OCR layer",
+            right_action_frame, text="Scrub invisible text",
             variable=self.sanitize_var
         )
         self.sanitize_checkbox.pack(side="right")
