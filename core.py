@@ -78,9 +78,6 @@ def scan_files_for_watermarks(
                                 candidate_key = ('text', file_path, page_num, bbox_tuple)
 
                                 if candidate_key not in all_candidates:
-                                    ## START: MODIFIED SECTION ##
-                                    # Thumbnail creation logic is removed.
-                                    # Now, it only passes the raw text data.
                                     all_candidates[candidate_key] = {
                                         'type': 'text',
                                         'text': keyword,
@@ -89,7 +86,6 @@ def scan_files_for_watermarks(
                                         'bbox': block_rect,
                                         'source': Path(file_path).name
                                     }
-                                    ## END: MODIFIED SECTION ##
                                 break 
             doc.close()
         except Exception as e:
@@ -104,84 +100,47 @@ def process_and_remove_watermarks(
     output_dir: str, 
     candidates_to_remove: Dict[str, List[Any]],
     suffix: str,
-    overwrite: bool = False
-):
-    """Removes selected image and text watermarks from a file and saves it."""
-    output_path = Path(output_dir)
-    if not output_path.is_dir():
-        print(f"Error: Output directory '{output_dir}' not found.")
-        return
-
-    doc = None
-    try:
-        doc = fitz.open(file_path)
-        # 1. Remove image watermarks
-        image_xrefs = candidates_to_remove.get('image', [])
-        if image_xrefs:
-            editor.remove_watermarks_by_xrefs(doc, image_xrefs)
-
-        # 2. Add redactions for text watermarks and apply them per page
-        text_candidates = candidates_to_remove.get('text', [])
-        if text_candidates:
-            editor.add_text_redactions(doc, text_candidates)
-            affected_pages = sorted(list({cand['page'] for cand in text_candidates}))
-            for page_num in affected_pages:
-                doc[page_num].apply_redactions()
-            print(f"Permanently applied text redactions on {len(affected_pages)} page(s).")
-
-        output_filename = output_path / f"{Path(file_path).stem}{suffix}.pdf"
-
-        if output_filename.exists() and not overwrite:
-            print(f"Skipping save: '{output_filename.name}' already exists.")
-            return
-
-        doc.save(str(output_filename), garbage=4, deflate=True)
-        print(f"Saved processed file to '{output_filename}'.")
-
-    except (FileNotFoundError, RuntimeError, Exception) as e:
-        print(f"Error while processing file ({Path(file_path).name}): {e}")
-    finally:
-        if doc:
-            doc.close()
-
-
-def process_and_remove_watermarks(
-    file_path: str, 
-    output_dir: str, 
-    candidates_to_remove: Dict[str, List[Any]],
-    suffix: str,
     overwrite: bool = False,
-    sanitize_hidden_text: bool = False
+    sanitize_hidden_text: bool = False,
+    input_dir_root: str = None  #  Set default input path
 ):
     """Removes selected watermarks and optionally sanitizes the file."""
     output_path = Path(output_dir)
+    source_path = Path(file_path)
     if not output_path.is_dir():
         print(f"Error: Output directory '{output_dir}' not found.")
         return
 
+    # Set default output path
+    output_filename = output_path / f"{source_path.stem}{suffix}.pdf"
+
+    if input_dir_root:
+        try:
+            relative_path = source_path.relative_to(input_dir_root)
+            output_filename = output_path / relative_path.parent / f"{source_path.stem}{suffix}.pdf"
+            # In case there is no child directory, create one.
+            output_filename.parent.mkdir(parents=True, exist_ok=True)
+        except ValueError:
+            # In case file is not included in default path, use default path.
+
+            pass
+            
     doc = None
     try:
         doc = fitz.open(file_path)
-        
-        # 1. Remove image watermarks
+
         image_xrefs = candidates_to_remove.get('image', [])
         if image_xrefs:
             editor.remove_watermarks_by_xrefs(doc, image_xrefs)
 
-        # 2. Add redactions for text watermarks
         text_candidates = candidates_to_remove.get('text', [])
         if text_candidates:
             editor.add_text_redactions(doc, text_candidates)
         
-        # 3. Apply all pending redactions AND/OR sanitize hidden text using scrub()
-        # The scrub method is efficient for applying redactions.
-        # It can also remove all hidden text if the option is selected.
         if text_candidates or sanitize_hidden_text:
             print("Applying redactions and/or sanitizing document...")
             doc.scrub(redactions=True, hidden_text=sanitize_hidden_text)
 
-        output_filename = output_path / f"{Path(file_path).stem}{suffix}.pdf"
-
         if output_filename.exists() and not overwrite:
             print(f"Skipping save: '{output_filename.name}' already exists.")
             return
@@ -190,18 +149,32 @@ def process_and_remove_watermarks(
         print(f"Saved processed file to '{output_filename}'.")
 
     except (FileNotFoundError, RuntimeError, Exception) as e:
-        print(f"Error while processing file ({Path(file_path).name}): {e}")
+        print(f"Error while processing file ({source_path.name}): {e}")
     finally:
         if doc:
             doc.close()
 
 
-def copy_unprocessed_file(file_path: str, output_dir: str, overwrite: bool = False):
-    """Copies a file to the output directory without modification."""
+def copy_unprocessed_file(
+    file_path: str, 
+    output_dir: str, 
+    overwrite: bool = False,
+    input_dir_root: str = None 
+):
+    """Copies a file to the output directory, preserving subfolder structure."""
     try:
         source = Path(file_path)
-        destination = Path(output_dir) / source.name
-        
+        destination_base = Path(output_dir)
+        destination = destination_base / source.name
+
+        if input_dir_root:
+            try:
+                relative_path = source.relative_to(input_dir_root)
+                destination = destination_base / relative_path
+                destination.parent.mkdir(parents=True, exist_ok=True)
+            except ValueError:
+                pass
+
         if destination.exists() and not overwrite:
             print(f"Skipping copy: '{destination.name}' already exists.")
             return
