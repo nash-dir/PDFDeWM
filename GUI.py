@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
+import os
 import tkinter as tk
 from tkinter import ttk, messagebox
 from pathlib import Path
@@ -37,6 +38,13 @@ except ImportError:
 from utils import FileManager, ThumbnailManager
 import core
 
+# GUI.py 상단에 추가
+import sys
+import fitz
+print("--- Environment Check ---")
+print("Python Executable:", sys.executable)
+print("Fitz (PyMuPDF) Version:", fitz.__version__)
+print("-------------------------")
 
 class QueueLogger:
     def __init__(self, q: queue.Queue):
@@ -258,15 +266,18 @@ class App(tk.Tk):
                 self.file_listbox.insert("end", Path(file).name)
         self._check_overwrite_warning()
 
+
     def add_folder(self):
         folder = self.file_manager.ask_for_folder()
         if folder:
-            for file in sorted(Path(folder).glob("*.pdf")):
+            for file in sorted(Path(folder).rglob("*.pdf")):
                 file_str = str(file)
                 if file_str not in self.input_files:
                     self.input_files.append(file_str)
-                    self.file_listbox.insert("end", file.name)
+                    display_name = file.relative_to(folder)
+                    self.file_listbox.insert("end", display_name)
         self._check_overwrite_warning()
+
 
     def remove_selected_files(self):
         selected_indices = self.file_listbox.curselection()
@@ -276,6 +287,7 @@ class App(tk.Tk):
             self.file_listbox.delete(index)
         self._check_overwrite_warning()
 
+
     def select_output_dir(self):
         directory = self.file_manager.ask_for_output_dir()
         if directory:
@@ -283,6 +295,7 @@ class App(tk.Tk):
             self.output_dir_entry.delete(0, "end")
             self.output_dir_entry.insert(0, self.output_dir)
             self._check_overwrite_warning()
+
 
     def start_scan(self):
         if not self.input_files:
@@ -307,6 +320,7 @@ class App(tk.Tk):
             args=(min_page_ratio, text_keywords), 
             daemon=True
         ).start()
+
 
     def start_removal(self):
         candidates_to_remove = defaultdict(lambda: defaultdict(list))
@@ -342,11 +356,21 @@ class App(tk.Tk):
         self.scan_button.config(state="disabled")
         self.remove_button.config(state="disabled")
         
+        input_root = None
+        if self.input_files:
+            try:
+                common_path = os.path.commonpath(self.input_files)
+                if os.path.isdir(common_path):
+                    input_root = common_path
+            except ValueError:
+                pass
+
         args = (
             self.input_files, candidates_to_remove, suffix,
-            copy_skipped, overwrite, sanitize
+            copy_skipped, overwrite, sanitize, input_root 
         )
         threading.Thread(target=self.removal_worker, args=args, daemon=True).start()
+
 
     def process_queue(self):
         try:
@@ -396,24 +420,27 @@ class App(tk.Tk):
         self, all_input_files: List[str],
         candidates_by_file: Dict[str, Dict[str, List]],
         suffix: str, copy_skipped: bool, overwrite: bool,
-        sanitize: bool
+        sanitize: bool, input_root: str  
     ):
         total_files = len(all_input_files)
         for i, file_path in enumerate(all_input_files):
             self.task_queue.put(('removal_progress', i + 1, total_files))
             
-            # A file should be processed if it has selected watermarks OR if sanitize is on.
-            # It should be copied only if it has no selected watermarks, sanitize is off, AND copy_skipped is on.
             should_process = (file_path in candidates_by_file) or sanitize
 
             if should_process:
                 to_remove = candidates_by_file.get(file_path, {})
                 self.core.process_and_remove_watermarks(
                     file_path, self.output_dir, to_remove, suffix, 
-                    overwrite=overwrite, sanitize_hidden_text=sanitize
+                    overwrite=overwrite, sanitize_hidden_text=sanitize,
+                    input_dir_root=input_root 
                 )
             elif copy_skipped:
-                self.core.copy_unprocessed_file(file_path, self.output_dir, overwrite=overwrite)
+                self.core.copy_unprocessed_file(
+                    file_path, self.output_dir, 
+                    overwrite=overwrite,
+                    input_dir_root=input_root  
+                )
 
         self.task_queue.put(('removal_complete',))
 
