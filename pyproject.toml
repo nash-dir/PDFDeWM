@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 # --- Project Metadata ---
 [project]
 name = "pdfdewm"
-version = "1.0.0" 
+version = "1.2.0" # <--- Version updated to 1.2.0
 authors = [
   { name="nash-dir", email="hyunsan194@gmail.com" },
 ]
