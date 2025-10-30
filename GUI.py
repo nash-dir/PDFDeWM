@@ -99,27 +99,28 @@ class App(tk.Tk):
         self._bind_hotkeys()
 
     def _bind_hotkeys(self):
+        
         self.bind_all("<Control-a>", self.add_files) # Add Files (Ctrl+A)
         self.bind_all("<Control-Shift-A>", self.add_folder) # Add Folder (Ctrl+Shift+A)
 
         self.bind_all("<Control-s>", self.select_output_dir) # Select Output Dir (Ctrl+S)
         self.bind_all("<Control-d>", self.start_scan) # Scan (Ctrl+D)
         self.bind_all("<Control-f>", self.start_removal) # Run Removal (Ctrl+F)
+        self.bind_all("<Control-t>", self.on_closing) # Close application (Ctrl+T)
 
-        # ADDED: Ctrl+Q - Move focus to Output Suffix Entry and select all
+        # Move focus to Output Suffix Entry and select all (Ctrl+Q)
         self.bind_all("<Control-q>", lambda e: self._focus_and_select(self.suffix_entry)) 
-        # ADDED: Ctrl+W - Move focus to Text Keyword Entry and select all
+        # Move focus to Text Keyword Entry and select all (Ctrl+W)
         self.bind_all("<Control-w>", lambda e: self._focus_and_select(self.text_keyword_entry))
 
         # intentional ctrl+shift key binding duplication for lesser hassle
-        self.bind_all("<Control-Shift-S>", self.select_output_dir) # Select Output Dir (Ctrl+Shift+S)
-        self.bind_all("<Control-Shift-D>", self.start_scan) # Scan (Ctrl+Shift+D)
-        self.bind_all("<Control-Shift-F>", self.start_removal) # Run Removal (Ctrl+Shift+F)
+        self.bind_all("<Control-Shift-S>", self.select_output_dir)
+        self.bind_all("<Control-Shift-D>", self.start_scan)
+        self.bind_all("<Control-Shift-F>", self.start_removal)
+        self.bind_all("<Control-Shift-T>", self.on_closing)
         self.bind_all("<Control-Shift-Q>", lambda e: self._focus_and_select(self.suffix_entry))
         self.bind_all("<Control-Shift-W>", lambda e: self._focus_and_select(self.text_keyword_entry))
 
-        self.bind_all("<Control-t>", self.on_closing)
-        self.bind_all("<Control-Shift-T>", self.on_closing)
 
     def _focus_and_select(self, entry_widget):
         """Set focus to the entry widget and select all text."""
@@ -140,6 +141,31 @@ class App(tk.Tk):
         self.restore_logging()
         self.destroy()
 
+    def open_selected_file(self, event=None):
+        """Open Selected file within queue with system default PDF viewer"""
+        selected_indices = self.file_listbox.curselection()
+        if not selected_indices:
+            return
+        
+        # Listbox is multiple select mode, but only the first file will be opened
+        index = selected_indices[0]
+        file_path = self.input_files[index]
+        
+        try:
+            if sys.platform == "win32":
+                # Windows
+                os.startfile(file_path)
+            elif sys.platform == "darwin":
+                # macOS
+                import subprocess
+                subprocess.call(('open', file_path))
+            else:
+                # Linux (freedesktop.org compatible)
+                import subprocess
+                subprocess.call(('xdg-open', file_path))
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not open file:\n{file_path}\nError: {e}")
+
     def _setup_ui(self):
         top_frame = ttk.Frame(self, padding="10")
         top_frame.pack(fill="x", side="top", pady=(0,5))
@@ -157,6 +183,10 @@ class App(tk.Tk):
         list_scroll = ttk.Scrollbar(top_frame, orient="vertical", command=self.file_listbox.yview)
         list_scroll.grid(row=0, column=2, rowspan=2, sticky="ns")
         self.file_listbox.config(yscrollcommand=list_scroll.set)
+
+        # when focused on Listbox, double click would open selected file
+        self.file_listbox.bind("<Double-1>", self.open_selected_file)
+        self.file_listbox.bind("<Return>", self.open_selected_file)
 
         # when focused on Listbox, binding delete / backspace key to remove_selected_files 
         self.file_listbox.bind("<Delete>", self.remove_selected_files)
@@ -315,12 +345,72 @@ class App(tk.Tk):
             selected_indices = self.file_listbox.curselection()
             if not selected_indices: 
                 return
+            
+            # 1. Collect the paths of files to be deleted (for cleaning up watermark_candidates).
+            files_to_remove = []
+            # Safely extract file paths from the list of selected indices.
+            for index in selected_indices:
+                files_to_remove.append(self.input_files[index])
+
             target_index = selected_indices[0] 
 
+            # 2. Delete the file list and Listbox items in reverse order.
             for index in reversed(selected_indices):
                 self.input_files.pop(index)
                 self.file_listbox.delete(index)
             
+            # 3. Delete only the entries for the corresponding files from watermark_candidates. (Core change)
+            keys_to_delete = [
+                key for key in self.watermark_candidates
+                if key[1] in files_to_remove  # key[1] is the file path
+            ]
+            for key in keys_to_delete:
+                del self.watermark_candidates[key]
+
+            # 4. Completely clear the thumbnail UI and reconstruct it with the remaining dictionary entries.
+            for widget in self.thumbnail_frame.winfo_children():
+                widget.destroy()
+
+            # Reconstruct the thumbnail UI with the remaining candidates.
+            # The dictionary (self.watermark_candidates) contains items that have not been deleted, so redraw them.
+            for candidate_key, candidate_data in self.watermark_candidates.items():
+                item_frame = ttk.Frame(self.thumbnail_frame, padding=5, relief="groove", borderwidth=1)
+                item_frame.pack(pady=5, padx=5, fill="x")
+
+                # Use the existing tk.BooleanVar.
+                chk = ttk.Checkbutton(item_frame, variable=candidate_data['var'])
+                chk.pack(side="left", padx=(0, 10))
+                
+                # Recreate the PhotoImage object and update the reference (to prevent Tkinter GC).
+                if candidate_data['type'] == 'image':
+                    # Reuse pil_img to recreate the PhotoImage.
+                    photo_img = self.thumbnail_manager.create_image_thumbnail(candidate_data['pil_img'])
+                else:
+                    full_text = candidate_data.get('full_text', candidate_data['text'])
+                    photo_img = self.thumbnail_manager.create_text_thumbnail(full_text)
+                
+                # Update the PhotoImage reference.
+                candidate_data['img_obj'] = photo_img
+
+                img_label = ttk.Label(item_frame, image=photo_img)
+                img_label.pack(side="left")
+
+                info_lines = []
+                if candidate_data['type'] == 'image':
+                    info_lines.append(f"Type: Image")
+                    info_lines.append(f"XRef: {candidate_data['xref']}")
+                elif candidate_data['type'] == 'text':
+                    info_lines.append(f"Type: Text")
+                    info_lines.append(f"Keyword: \"{candidate_data['text']}\"")
+                    info_lines.append(f"Page: {candidate_data['page'] + 1}")
+
+                info_lines.append(f"Source: {candidate_data['source']}")
+                info_text = "\n".join(info_lines)
+
+                info_label = ttk.Label(item_frame, text=info_text, justify="left")
+                info_label.pack(side="left", padx=10)
+
+            # 5. Logic for selecting the next item.
             current_list_size = self.file_listbox.size()
 
             if current_list_size > 0:
