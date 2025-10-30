@@ -38,7 +38,6 @@ except ImportError:
 from utils import FileManager, ThumbnailManager
 import core
 
-# GUI.py 상단에 추가
 import sys
 import fitz
 print("--- Environment Check ---")
@@ -95,9 +94,38 @@ class App(tk.Tk):
 
         self._setup_ui()
         self.redirect_logging()
-        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+        self.protocol("WM_DELETE_WINDOW", self.on_closing) 
         self.after(100, self.process_queue)
-        
+        self._bind_hotkeys()
+
+    def _bind_hotkeys(self):
+        self.bind_all("<Control-a>", self.add_files) # Add Files (Ctrl+A)
+        self.bind_all("<Control-Shift-A>", self.add_folder) # Add Folder (Ctrl+Shift+A)
+
+        self.bind_all("<Control-s>", self.select_output_dir) # Select Output Dir (Ctrl+S)
+        self.bind_all("<Control-d>", self.start_scan) # Scan (Ctrl+D)
+        self.bind_all("<Control-f>", self.start_removal) # Run Removal (Ctrl+F)
+
+        # ADDED: Ctrl+Q - Move focus to Output Suffix Entry and select all
+        self.bind_all("<Control-q>", lambda e: self._focus_and_select(self.suffix_entry)) 
+        # ADDED: Ctrl+W - Move focus to Text Keyword Entry and select all
+        self.bind_all("<Control-w>", lambda e: self._focus_and_select(self.text_keyword_entry))
+
+        # intentional ctrl+shift key binding duplication for lesser hassle
+        self.bind_all("<Control-Shift-S>", self.select_output_dir) # Select Output Dir (Ctrl+Shift+S)
+        self.bind_all("<Control-Shift-D>", self.start_scan) # Scan (Ctrl+Shift+D)
+        self.bind_all("<Control-Shift-F>", self.start_removal) # Run Removal (Ctrl+Shift+F)
+        self.bind_all("<Control-Shift-Q>", lambda e: self._focus_and_select(self.suffix_entry))
+        self.bind_all("<Control-Shift-W>", lambda e: self._focus_and_select(self.text_keyword_entry))
+
+        self.bind_all("<Control-t>", self.on_closing)
+        self.bind_all("<Control-Shift-T>", self.on_closing)
+
+    def _focus_and_select(self, entry_widget):
+        """Set focus to the entry widget and select all text."""
+        entry_widget.focus_set()
+        entry_widget.selection_range(0, tk.END)
+
     def redirect_logging(self):
         sys.stdout = self.queue_logger
         sys.stderr = self.queue_logger
@@ -108,7 +136,7 @@ class App(tk.Tk):
         sys.stdout = self.original_stdout
         sys.stderr = self.original_stderr
 
-    def on_closing(self):
+    def on_closing(self, event=None):
         self.restore_logging()
         self.destroy()
 
@@ -120,9 +148,9 @@ class App(tk.Tk):
         file_button_frame = ttk.Frame(top_frame)
         file_button_frame.grid(row=0, column=0, rowspan=2, sticky="n", padx=(0, 5))
 
-        ttk.Button(file_button_frame, text="Add Files", command=self.add_files).pack(fill="x", pady=2)
-        ttk.Button(file_button_frame, text="Add Folder", command=self.add_folder).pack(fill="x", pady=2)
-        ttk.Button(file_button_frame, text="Remove Selected", command=self.remove_selected_files).pack(fill="x", pady=2)
+        ttk.Button(file_button_frame, text="Add Files(ctrl+a)", command=self.add_files).pack(fill="x", pady=2)
+        ttk.Button(file_button_frame, text="Add Folder(ctrl+A)", command=self.add_folder).pack(fill="x", pady=2)
+        ttk.Button(file_button_frame, text="Remove Selected(del)", command=self.remove_selected_files).pack(fill="x", pady=2)
         
         self.file_listbox = tk.Listbox(top_frame, height=5, selectmode="extended")
         self.file_listbox.grid(row=0, column=1, rowspan=2, sticky="ew")
@@ -130,12 +158,16 @@ class App(tk.Tk):
         list_scroll.grid(row=0, column=2, rowspan=2, sticky="ns")
         self.file_listbox.config(yscrollcommand=list_scroll.set)
 
+        # when focused on Listbox, binding delete / backspace key to remove_selected_files 
+        self.file_listbox.bind("<Delete>", self.remove_selected_files)
+        self.file_listbox.bind("<BackSpace>", self.remove_selected_files)
+
         ttk.Label(top_frame, text="Output Folder:").grid(row=2, column=0, sticky="w", pady=(10, 0))
         self.output_dir_entry = ttk.Entry(top_frame)
         self.output_dir_entry.grid(row=2, column=1, sticky="ew", pady=(10, 0))
-        ttk.Button(top_frame, text="Browse", command=self.select_output_dir).grid(row=2, column=2, sticky="e", pady=(10, 0), padx=(5,0))
+        ttk.Button(top_frame, text="Browse(ctrl+s)", command=self.select_output_dir).grid(row=2, column=2, sticky="e", pady=(10, 0), padx=(5,0))
         
-        ttk.Label(top_frame, text="Output Suffix:").grid(row=3, column=0, sticky="w", pady=(5, 0))
+        ttk.Label(top_frame, text="Output Suffix(ctrl+q):").grid(row=3, column=0, sticky="w", pady=(5, 0))
         self.suffix_entry = ttk.Entry(top_frame, textvariable=self.suffix_var)
         self.suffix_entry.grid(row=3, column=1, sticky="ew", pady=(5, 0))
 
@@ -154,7 +186,7 @@ class App(tk.Tk):
         )
         self.threshold_spinbox.pack(side="left")
 
-        ttk.Label(options_container, text="Text Keywords (use ';' to separate):").grid(row=1, column=0, sticky="w", pady=(5, 0))
+        ttk.Label(options_container, text="Text Keywords(ctrl+w, use ';' to separate):").grid(row=1, column=0, sticky="w", pady=(5, 0))
         self.text_keyword_entry = ttk.Entry(options_container, textvariable=self.text_keywords_var)
         self.text_keyword_entry.grid(row=1, column=1, sticky="ew", pady=(5, 0))
 
@@ -173,9 +205,9 @@ class App(tk.Tk):
         left_action_frame = ttk.Frame(action_frame)
         left_action_frame.pack(side="left")
         
-        self.scan_button = ttk.Button(left_action_frame, text="Scan Selected Files", command=self.start_scan)
+        self.scan_button = ttk.Button(left_action_frame, text="Scan Selected Files(ctrl+d)", command=self.start_scan)
         self.scan_button.pack(side="left", padx=(0, 2))
-        self.remove_button = ttk.Button(left_action_frame, text="Run Watermark Removal", command=self.start_removal, state="disabled")
+        self.remove_button = ttk.Button(left_action_frame, text="Run Watermark Removal(ctrl+f)", command=self.start_removal, state="disabled")
         self.remove_button.pack(side="left", padx=2)
         
         self.copy_skipped_checkbox = ttk.Checkbutton(left_action_frame, text="Copy unprocessed files", variable=self.copy_skipped_var)
@@ -258,7 +290,7 @@ class App(tk.Tk):
             self.overwrite_warning_label.grid_remove()
 
 
-    def add_files(self):
+    def add_files(self, event=None):
         new_files = self.file_manager.ask_for_files()
         for file in new_files:
             if file not in self.input_files:
@@ -267,7 +299,7 @@ class App(tk.Tk):
         self._check_overwrite_warning()
 
 
-    def add_folder(self):
+    def add_folder(self, event=None):
         folder = self.file_manager.ask_for_folder()
         if folder:
             for file in sorted(Path(folder).rglob("*.pdf")):
@@ -279,16 +311,32 @@ class App(tk.Tk):
         self._check_overwrite_warning()
 
 
-    def remove_selected_files(self):
-        selected_indices = self.file_listbox.curselection()
-        if not selected_indices: return
-        for index in reversed(selected_indices):
-            self.input_files.pop(index)
-            self.file_listbox.delete(index)
-        self._check_overwrite_warning()
+    def remove_selected_files(self, event=None):
+            selected_indices = self.file_listbox.curselection()
+            if not selected_indices: 
+                return
+            target_index = selected_indices[0] 
+
+            for index in reversed(selected_indices):
+                self.input_files.pop(index)
+                self.file_listbox.delete(index)
+            
+            current_list_size = self.file_listbox.size()
+
+            if current_list_size > 0:
+                final_selection_index = min(target_index, current_list_size - 1)
+                
+                self.file_listbox.selection_clear(0, tk.END)
+                self.file_listbox.selection_set(final_selection_index)
+                self.file_listbox.activate(final_selection_index)
+                self.file_listbox.see(final_selection_index)
+            else:
+                self.file_listbox.selection_clear(0, tk.END)
+
+            self._check_overwrite_warning()
 
 
-    def select_output_dir(self):
+    def select_output_dir(self, event=None): 
         directory = self.file_manager.ask_for_output_dir()
         if directory:
             self.output_dir = directory
@@ -297,7 +345,10 @@ class App(tk.Tk):
             self._check_overwrite_warning()
 
 
-    def start_scan(self):
+    def start_scan(self, event=None): 
+        if self.scan_button['state'] == 'disabled' and event is not None:
+            return
+
         if not self.input_files:
             messagebox.showwarning("No Files", "Please add PDF files to scan first.")
             return
@@ -322,7 +373,10 @@ class App(tk.Tk):
         ).start()
 
 
-    def start_removal(self):
+    def start_removal(self, event=None): 
+        if self.remove_button['state'] == 'disabled' and event is not None:
+            return
+
         candidates_to_remove = defaultdict(lambda: defaultdict(list))
         
         for key, data in self.watermark_candidates.items():
@@ -333,7 +387,7 @@ class App(tk.Tk):
                     candidates_to_remove[file_path]['image'].append(xref)
                 elif candidate_type == 'text':
                     page_num, bbox = rest
-                    text_info = {'page': page_num, 'bbox': fitz.Rect(bbox)}
+                    text_info = {'page': page_num, 'bbox': bbox}
                     candidates_to_remove[file_path]['text'].append(text_info)
 
         if not self.output_dir or not Path(self.output_dir).is_dir():
@@ -497,3 +551,4 @@ class App(tk.Tk):
 if __name__ == "__main__":
     app = App()
     app.mainloop()
+
