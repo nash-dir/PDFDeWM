@@ -23,7 +23,7 @@ and `editor`).
 """
 
 
-import fitz  # PyMuPDF
+import fitz
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 import shutil
@@ -138,12 +138,15 @@ def process_and_remove_watermarks(
             editor.add_text_redactions(doc, text_candidates)
 
         if text_candidates or sanitize_hidden_text:
-            if sanitize_hidden_text = True:
+            if sanitize_hidden_text:
                 print("Applying redactions and sanitizing hidden texts...")
-                doc.scrub(redactions=True, hidden_text=sanitize_hidden_text)
-            else :
-                print("Applying redactions...")
-                doc.scrub(redactions=True)
+            else:
+                print("Applying text redactions...")
+            
+            doc.scrub(
+                redactions=True,
+                hidden_text=sanitize_hidden_text
+            )
 
         if output_filename.exists() and not overwrite:
             print(f"Skipping save: '{output_filename.name}' already exists.")
