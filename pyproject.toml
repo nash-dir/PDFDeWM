@@ -48,4 +48,5 @@ py-modules = [
     "core",
     "identifier",
     "editor",
+    "utils",
 ]
