@@ -49,20 +49,20 @@ To run this application, you need Python 3. The required libraries are listed in
     ```
 
 2.  **Add Files & Set Options**
-    * Click **"Add Files"** ($\text{Ctrl + A}$) or **"Add Folder"** ($\text{Ctrl + Shift + A}$) to select input files.
-    * Click **"Browse"** ($\text{Ctrl + S}$) to select an Output folder. If the Output path is not designated, results will be saved to the Input path.
-    * Designate **"Output Suffix"** ($\text{Ctrl + Q}$ to focus) to concatenate after the original filename. Leaving it blank would result in the Output filename being identical to the input file.
+    * Click **"Add Files"** ($Ctrl + A$) or **"Add Folder"** ($Ctrl + Shift + A$) to select input files.
+    * Click **"Browse"** ($Ctrl + S$) to select an Output folder. If the Output path is not designated, results will be saved to the Input path.
+    * Designate **"Output Suffix"** ($Ctrl + Q$ to focus) to concatenate after the original filename. Leaving it blank would result in the Output filename being identical to the input file.
     * Check **"Copy unprocessed files"** in order to have unprocessed files in the selected batch be copied to the Output directory.
     * Check **"Overwrite existing files"** to have existing files in the result directory overwritten. If not checked, the program will skip the file if 'filename\_suffix' already exists in the Output directory.
     * **Be extra precautious if "Output Suffix" is blank, and "Overwrite existing files" is checked. It will make original input files be overwritten irreversibly.**
 
 3.  **Scan for Watermarks**
-    * Click **"Scan Selected Files"** ($\text{Ctrl + D}$). The application will analyze the files and display potential watermarks.
+    * Click **"Scan Selected Files"** ($Ctrl + D$). The application will analyze the files and display potential watermarks.
     * Adjust **"Scan Threshold"** to set the threshold for image watermark detection. **Lower Threshold** means that an image object that appears in fewer pages is more likely to be detected as a watermark.
 
 4.  **Select and Remove**
     * Uncheck any images you do not want to remove.
-    * Click **"Run Watermark Removal"** ($\text{Ctrl + F}$).
+    * Click **"Run Watermark Removal"** ($Ctrl + F$).
 
 ---
 
@@ -70,16 +70,16 @@ To run this application, you need Python 3. The required libraries are listed in
 
 | Action | Shortcut | Description |
 | :--- | :--- | :--- |
-| **Add Files** | $\text{Ctrl + A}$ | Open file selection dialog. |
-| **Add Folder** | $\text{Ctrl + Shift + A}$ | Open folder selection dialog. |
-| **Browse Output Folder** | $\text{Ctrl + S}$ / $\text{Ctrl + Shift + S}$ | Open the output folder selection dialog. |
-| **Scan Selected Files** | $\text{Ctrl + D}$ / $\text{Ctrl + Shift + D}$ | Start the watermark identification scan. |
-| **Run Watermark Removal** | $\text{Ctrl + F}$ / $\text{Ctrl + Shift + F}$ | Start the removal process. |
-| **Close Application** | $\text{Ctrl + T}$ / $\text{Ctrl + Shift + T}$ | Exit the program. |
-| **Focus Output Suffix** | $\text{Ctrl + Q}$ / $\text{Ctrl + Shift + Q}$ | Move cursor to the Output Suffix field and select all text. |
-| **Focus Text Keywords** | $\text{Ctrl + W}$ / $\text{Ctrl + Shift + W}$ | Move cursor to the Text Keywords field and select all text. |
-| **Remove Selected File** | $\text{Delete}$ / $\text{Backspace}$ | Remove the selected file(s) from the processing list. |
-| **Open Selected File** | $\text{Double-Click}$ / $\text{Enter}$ ($\text{Return}$) | Open the selected file in the system's default viewer. |
+| **Add Files** | $Ctrl + A$ | Open file selection dialog. |
+| **Add Folder** | $Ctrl + Shift + A$ | Open folder selection dialog. |
+| **Browse Output Folder** | $Ctrl + S$ / $Ctrl + Shift + S$ | Open the output folder selection dialog. |
+| **Scan Selected Files** | $Ctrl + D$ / $Ctrl + Shift + D$ | Start the watermark identification scan. |
+| **Run Watermark Removal** | $Ctrl + F$ / $Ctrl + Shift + F$ | Start the removal process. |
+| **Close Application** | $Ctrl + T$ / $Ctrl + Shift + T$ | Exit the program. |
+| **Focus Output Suffix** | $Ctrl + Q$ / $Ctrl + Shift + Q$ | Move cursor to the Output Suffix field and select all text. |
+| **Focus Text Keywords** | $Ctrl + W$ / $Ctrl + Shift + W$ | Move cursor to the Text Keywords field and select all text. |
+| **Remove Selected File** | $Delete$ / $Backspace$ | Remove the selected file(s) from the processing list. |
+| **Open Selected File** | $Double-Click$ / $Enter$ ($Return$) | Open the selected file in the system's default viewer. |
 
 ---
 
