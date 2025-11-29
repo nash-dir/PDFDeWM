@@ -42,6 +42,8 @@ To run this application, you need Python 3. The required libraries are listed in
 
 ## How to Use
 
+* Simplest way is just downloading **pre-built latest release**
+
 1.  **Launch the Application**
     Run the following command in your terminal from the project's root directory:
     ```
