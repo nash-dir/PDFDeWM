@@ -18,33 +18,80 @@
 """Core logic for scanning, processing, and saving PDF files.
 
 This module acts as the main controller, orchestrating the identification
-and removal process. It bridges the GUI with the backend modules (`identifier`
-and `editor`).
+and removal process. It bridges the GUI/CLI with the backend modules
+(``identifier`` and ``editor``).
 """
 
 
+import logging
 import fitz
 from pathlib import Path
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 import shutil
 from PIL import Image
 
 import identifier
 import editor
+from models import MAX_FILE_SIZE_BYTES
+
+logger = logging.getLogger("pdfdewm.core")
+
+
+def _check_file_size(file_path: str, max_bytes: int = MAX_FILE_SIZE_BYTES) -> bool:
+    """Check if a file exceeds the maximum allowed size.
+
+    Args:
+        file_path: Path to the file to check.
+        max_bytes: Maximum allowed size in bytes.
+
+    Returns:
+        True if the file is within limits, False if it exceeds.
+    """
+    size = Path(file_path).stat().st_size
+    if size > max_bytes:
+        max_mb = max_bytes / (1024 * 1024)
+        actual_mb = size / (1024 * 1024)
+        logger.warning(
+            f"Skipping '{Path(file_path).name}' — "
+            f"{actual_mb:.1f}MB exceeds {max_mb:.0f}MB limit."
+        )
+        return False
+    return True
 
 
 def scan_files_for_watermarks(
     file_paths: List[str],
     min_page_ratio: float,
-    text_keywords: List[str] = None
+    text_keywords: Optional[List[str]] = None,
+    cancel_flag: Optional[Any] = None,
 ) -> Dict[Tuple, Dict[str, Any]]:
-    """Scans multiple PDF files to find both image and text watermark candidates."""
+    """Scans multiple PDF files to find both image and text watermark candidates.
+
+    Args:
+        file_paths: List of PDF file paths to scan.
+        min_page_ratio: Minimum fraction of pages for commonality detection.
+        text_keywords: Optional list of text keywords to search for.
+        cancel_flag: Optional threading.Event or similar; if set, aborts early.
+
+    Returns:
+        A dictionary mapping candidate keys to candidate data dictionaries.
+    """
     all_candidates: Dict[Tuple, Dict[str, Any]] = {}
 
     if text_keywords is None:
         text_keywords = []
 
     for file_path in file_paths:
+        # Support cancellation
+        if cancel_flag is not None and cancel_flag.is_set():
+            logger.info("Scan cancelled by user.")
+            break
+
+        # File size guard (#10)
+        if not _check_file_size(file_path):
+            continue
+
+        doc = None
         try:
             doc = fitz.open(file_path)
 
@@ -63,34 +110,28 @@ def scan_files_for_watermarks(
                         'source': Path(file_path).name
                     }
 
-            # 2. Find text watermarks by checking entire text blocks
+            # 2. Find text watermarks by keywords (delegated to identifier)
             if text_keywords:
-                for page_num, page in enumerate(doc):
-                    text_blocks = page.get_text("blocks")
-                    
-                    for block in text_blocks:
-                        block_text = block[4]
-                        block_rect = fitz.Rect(block[:4])
+                text_matches = identifier.find_text_by_keywords(doc, text_keywords)
+                for match in text_matches:
+                    candidate_key = ('text', file_path, match['page'], match['bbox_tuple'])
+                    if candidate_key not in all_candidates:
+                        all_candidates[candidate_key] = {
+                            'type': 'text',
+                            'text': match['text'],
+                            'full_text': match['full_text'],
+                            'page': match['page'],
+                            'bbox': match['bbox'],
+                            'source': Path(file_path).name
+                        }
 
-                        for keyword in text_keywords:
-                            if keyword in block_text:
-                                bbox_tuple = tuple(round(c, 2) for c in block_rect)
-                                candidate_key = ('text', file_path, page_num, bbox_tuple)
-
-                                if candidate_key not in all_candidates:
-                                    all_candidates[candidate_key] = {
-                                        'type': 'text',
-                                        'text': keyword,
-                                        'full_text': block_text,
-                                        'page': page_num,
-                                        'bbox': block_rect,
-                                        'source': Path(file_path).name
-                                    }
-                                break 
-            doc.close()
         except Exception as e:
-            print(f"Error while scanning file ({Path(file_path).name}): {e}")
+            logger.error(f"Error scanning '{Path(file_path).name}': {e}")
             continue
+        finally:
+            # Guarantee document is always closed (#4)
+            if doc:
+                doc.close()
 
     return all_candidates
 
@@ -102,27 +143,36 @@ def process_and_remove_watermarks(
     suffix: str,
     overwrite: bool = False,
     sanitize_hidden_text: bool = False,
-    input_dir_root: str = None  #  Set default input path
+    clean_metadata: bool = False,
+    input_dir_root: Optional[str] = None,
 ):
-    """Removes selected watermarks and optionally sanitizes the file."""
+    """Removes selected watermarks and optionally sanitizes the file.
+
+    Args:
+        file_path: Path to the source PDF.
+        output_dir: Directory to write the output file.
+        candidates_to_remove: Dict with 'image' and/or 'text' keys.
+        suffix: Filename suffix for the output file.
+        overwrite: If True, overwrite existing output files.
+        sanitize_hidden_text: If True, scrub invisible text.
+        clean_metadata: If True, strip sensitive PDF metadata.
+        input_dir_root: Optional common root for preserving directory structure.
+    """
     output_path = Path(output_dir)
     source_path = Path(file_path)
     if not output_path.is_dir():
-        print(f"Error: Output directory '{output_dir}' not found.")
+        logger.error(f"Output directory '{output_dir}' not found.")
         return
 
-    # Set default output path
+    # Build output filename
     output_filename = output_path / f"{source_path.stem}{suffix}.pdf"
 
     if input_dir_root:
         try:
             relative_path = source_path.relative_to(input_dir_root)
             output_filename = output_path / relative_path.parent / f"{source_path.stem}{suffix}.pdf"
-            # In case there is no child directory, create one.
             output_filename.parent.mkdir(parents=True, exist_ok=True)
         except ValueError:
-            # In case file is not included in default path, use default path.
-
             pass
 
     doc = None
@@ -139,24 +189,28 @@ def process_and_remove_watermarks(
 
         if text_candidates or sanitize_hidden_text:
             if sanitize_hidden_text:
-                print("Applying redactions and sanitizing hidden texts...")
+                logger.info("Applying redactions and sanitizing hidden texts...")
             else:
-                print("Applying text redactions...")
+                logger.info("Applying text redactions...")
             
             doc.scrub(
                 redactions=True,
                 hidden_text=sanitize_hidden_text
             )
 
+        if clean_metadata:
+            editor.clean_metadata(doc)
+
         if output_filename.exists() and not overwrite:
-            print(f"Skipping save: '{output_filename.name}' already exists.")
+            logger.info(f"Skipping save: '{output_filename.name}' already exists.")
             return
 
         doc.save(str(output_filename), garbage=4, deflate=True)
-        print(f"Saved processed file to '{output_filename}'.")
+        logger.info(f"Saved processed file to '{output_filename}'.")
 
-    except (FileNotFoundError, RuntimeError, Exception) as e:
-        print(f"Error while processing file ({source_path.name}): {e}")
+    except Exception as e:
+        logger.error(f"Error processing '{source_path.name}': {e}")
+        raise  # Re-raise so callers can handle error isolation
     finally:
         if doc:
             doc.close()
@@ -166,9 +220,16 @@ def copy_unprocessed_file(
     file_path: str, 
     output_dir: str, 
     overwrite: bool = False,
-    input_dir_root: str = None 
+    input_dir_root: Optional[str] = None, 
 ):
-    """Copies a file to the output directory, preserving subfolder structure."""
+    """Copies a file to the output directory, preserving subfolder structure.
+
+    Args:
+        file_path: Path to the source file.
+        output_dir: Destination directory.
+        overwrite: If True, overwrite existing files.
+        input_dir_root: Optional common root for preserving directory structure.
+    """
     try:
         source = Path(file_path)
         destination_base = Path(output_dir)
@@ -183,15 +244,14 @@ def copy_unprocessed_file(
                 pass
 
         if destination.exists() and not overwrite:
-            print(f"Skipping copy: '{destination.name}' already exists.")
+            logger.info(f"Skipping copy: '{destination.name}' already exists.")
             return
 
         if source.resolve() == destination.resolve():
-            print(f"Skipping copy: Source and destination are the same for '{source.name}'.")
+            logger.info(f"Skipping copy: source and destination are the same for '{source.name}'.")
             return
             
         shutil.copy2(source, destination)
-        print(f"Copied unprocessed file '{source.name}' to output directory.")
+        logger.info(f"Copied unprocessed file '{source.name}' to output directory.")
     except (IOError, shutil.Error) as e:
-        print(f"Error copying file '{Path(file_path).name}': {e}")
-
+        logger.error(f"Error copying '{Path(file_path).name}': {e}")

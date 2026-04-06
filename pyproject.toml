@@ -6,19 +6,22 @@ build-backend = "setuptools.build_meta"
 # --- Project Metadata ---
 [project]
 name = "pdfdewm"
-version = "1.2.0" # <--- Version updated to 1.2.0
+version = "1.4.0"
 authors = [
   { name="nash-dir", email="hyunsan194@gmail.com" },
 ]
-description = "A GUI tool to easily remove watermarks from PDF files using Tkinter."
+description = "A GUI/CLI tool to easily remove watermarks from PDF files."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = { file="license.txt" } 
-keywords = ["pdf", "watermark", "remove", "gui", "tkinter", "PyMuPDF", "Pillow"]
+keywords = ["pdf", "watermark", "remove", "gui", "cli", "tkinter", "PyMuPDF", "Pillow"]
 # Classifiers for PyPI
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)", 
     "Operating System :: OS Independent",
     "Topic :: Utilities",
@@ -27,12 +30,27 @@ classifiers = [
 ]
 
 # --- Package Dependencies ---
-# Libraries required to run the GUI application.
+# Libraries required to run the application.
 dependencies = [
-    # Core library for PDF processing
-    "PyMuPDF",
-    # For handling images within the GUI
-    "Pillow",
+    "PyMuPDF>=1.24,<2.0",
+    "Pillow>=10.0,<12.0",
+]
+
+# --- Optional Dependencies ---
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.4",
+]
+dnd = [
+    "tkinterdnd2>=0.3",
+]
+theme = [
+    "sv_ttk>=2.0",
+]
+full = [
+    "tkinterdnd2>=0.3",
+    "sv_ttk>=2.0",
 ]
 
 # --- Project Links ---
@@ -40,6 +58,11 @@ dependencies = [
 "Homepage" = "https://github.com/nash-dir/PDFDeWM"
 "Repository" = "https://github.com/nash-dir/PDFDeWM"
 "Bug Tracker" = "https://github.com/nash-dir/PDFDeWM/issues"
+"Changelog" = "https://github.com/nash-dir/PDFDeWM/blob/main/CHANGELOG.md"
+
+# --- Console Scripts ---
+[project.scripts]
+pdfdewm = "cli:main"
 
 # --- Setuptools Configuration ---
 [tool.setuptools.py-modules]
@@ -49,4 +72,20 @@ py-modules = [
     "identifier",
     "editor",
     "utils",
+    "models",
+    "cli",
 ]
+
+# --- Ruff Configuration ---
+[tool.ruff]
+target-version = "1.4.0"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]
+
+# --- Pytest Configuration ---
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

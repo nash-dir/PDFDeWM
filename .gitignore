@@ -55,3 +55,12 @@ working/
 # Text dump files generated for debugging et al.
 *_dump.txt
 suggestions.md
+report/
+
+# User configuration (persisted settings)
+.pdfdewm/
+
+# Launcher build artifacts
+launcher/*.o
+launcher/*.res
+launcher/*.exe
