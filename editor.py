@@ -17,10 +17,13 @@
 """Contains functions that directly modify a PDF to remove watermarks."""
 
 
+import logging
 import fitz  # PyMuPDF
 import re
 from typing import List, Dict, Set, Any
 from collections import defaultdict
+
+logger = logging.getLogger("pdfdewm.editor")
 
 
 def map_xrefs_to_names(doc: fitz.Document, xrefs: List[int]) -> Dict[int, str]:
@@ -52,10 +55,39 @@ def map_xrefs_to_names(doc: fitz.Document, xrefs: List[int]) -> Dict[int, str]:
                 xrefs_to_find.remove(xref)
 
     if xrefs_to_find:
-        print(f"Warning: Could not find names for the following xrefs: {xrefs_to_find}")
+        logger.warning(f"Could not find names for xrefs: {xrefs_to_find}")
 
-    print(f"Image name mapping complete: {name_map}")
+    logger.debug(f"Image name mapping complete: {name_map}")
     return name_map
+
+
+def _decode_content_stream(stream_bytes: bytes) -> str:
+    """Decode a PDF content stream, trying UTF-8 first then falling back to latin-1.
+
+    Args:
+        stream_bytes: Raw bytes from the content stream.
+
+    Returns:
+        The decoded string.
+    """
+    try:
+        return stream_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        return stream_bytes.decode("latin-1")
+
+
+def _encode_content_stream(stream_str: str) -> bytes:
+    """Encode a content stream string back to bytes.
+
+    Uses latin-1 for maximum compatibility with PDF streams.
+
+    Args:
+        stream_str: The content stream as a string.
+
+    Returns:
+        Encoded bytes.
+    """
+    return stream_str.encode("latin-1", errors="replace")
 
 
 def clean_content_streams(doc: fitz.Document, image_names: List[str]):
@@ -64,6 +96,9 @@ def clean_content_streams(doc: fitz.Document, image_names: List[str]):
     This prevents the watermark image from being drawn on the page. It finds
     and removes the 'Do' operator associated with the watermark image name.
 
+    Uses a non-greedy, minimal regex pattern to avoid accidentally removing
+    non-watermark content in nested q/Q blocks.
+
     Args:
         doc: The PyMuPDF document to modify.
         image_names: A list of image names (e.g., ['/Im1', '/Im2']) to remove.
@@ -71,33 +106,33 @@ def clean_content_streams(doc: fitz.Document, image_names: List[str]):
     if not image_names:
         return
 
+    # Build a pattern that matches only the specific image Do command
+    # Using non-greedy .*? and minimal scope to avoid over-matching
     names_pattern = "|".join(re.escape(name) for name in image_names)
     watermark_pattern = re.compile(
-        rf"q\s*.*?/({names_pattern})\s+Do\s*.*?Q",
+        rf"q\s[^Q]*?/({names_pattern})\s+Do\s*?[^q]*?Q",
         flags=re.DOTALL
     )
 
-    print(f"Attempting to remove image calls from content streams: {image_names}")
+    logger.info(f"Removing image calls from content streams: {image_names}")
     for page in doc:
         try:
             for content_xref in page.get_contents():
-                stream = doc.xref_stream(content_xref).decode("latin-1")
+                stream = _decode_content_stream(doc.xref_stream(content_xref))
                 cleaned_stream = watermark_pattern.sub("", stream)
                 
                 if cleaned_stream != stream:
-                    print(f"Cleaned content stream on page {page.number} (xref={content_xref}).")
-                    doc.update_stream(content_xref, cleaned_stream.encode("latin-1"))
+                    logger.debug(f"Cleaned content stream on page {page.number} (xref={content_xref}).")
+                    doc.update_stream(content_xref, _encode_content_stream(cleaned_stream))
         except Exception as e:
-            # PyMuPDF can raise various internal errors. Catching a broad
-            # exception is safer here without more specific documentation.
-            print(f"Error cleaning content on page {page.number}: {e}")
+            logger.error(f"Error cleaning content on page {page.number}: {e}")
 
 
 def delete_objects_and_smasks(doc: fitz.Document, xrefs: List[int]) -> int:
     """Deletes image objects and their associated soft-mask (SMask) objects.
 
     Invalidating these objects ensures they are removed from the PDF structure.
-    This uses `doc.update_object(xref, "null")` which is the official
+    This uses ``doc.update_object(xref, "null")`` which is the official
     PyMuPDF method for object deletion.
 
     Args:
@@ -117,19 +152,17 @@ def delete_objects_and_smasks(doc: fitz.Document, xrefs: List[int]) -> int:
                 if smask_xref not in deleted_xrefs:
                     doc.update_object(smask_xref, "null")
                     deleted_xrefs.add(smask_xref)
-                    print(f"Deleted SMask object (xref={smask_xref}).")
+                    logger.debug(f"Deleted SMask object (xref={smask_xref}).")
         except Exception as e:
-            # Catching broad exception as PyMuPDF can raise various errors.
-            print(f"Error while searching for SMask for image {xref}: {e}")
+            logger.error(f"Error searching SMask for image {xref}: {e}")
 
         try:
             if xref not in deleted_xrefs:
                 doc.update_object(xref, "null")
                 deleted_xrefs.add(xref)
-                print(f"Deleted image object (xref={xref}).")
+                logger.debug(f"Deleted image object (xref={xref}).")
         except Exception as e:
-            # Catching broad exception as PyMuPDF can raise various errors.
-            print(f"Failed to delete image object (xref={xref}): {e}")
+            logger.error(f"Failed to delete image object (xref={xref}): {e}")
     
     return len(deleted_xrefs)
 
@@ -138,7 +171,7 @@ def add_text_redactions(doc: fitz.Document, text_candidates: List[Dict[str, Any]
     """Adds redaction annotations to cover text watermarks.
 
     This function does not permanently remove the text. It adds the redaction
-    "markings" to the document. A subsequent call to `doc.apply_redactions()`
+    "markings" to the document. A subsequent call to ``doc.scrub(redactions=True)``
     is required to make the removal permanent.
 
     Args:
@@ -150,7 +183,7 @@ def add_text_redactions(doc: fitz.Document, text_candidates: List[Dict[str, Any]
     if not text_candidates:
         return
 
-    print(f"Adding redactions for {len(text_candidates)} text watermarks.")
+    logger.info(f"Adding redactions for {len(text_candidates)} text watermarks.")
     
     # Group candidates by page for efficiency
     candidates_by_page = defaultdict(list)
@@ -161,10 +194,10 @@ def add_text_redactions(doc: fitz.Document, text_candidates: List[Dict[str, Any]
         try:
             page = doc.load_page(page_num)
             for bbox in bboxes:
-                page.add_redact_annot(bbox, fill=(1, 1, 1)) # Fill with white
-            print(f"Added {len(bboxes)} redaction(s) on page {page_num + 1}.")
+                page.add_redact_annot(bbox, fill=(1, 1, 1))  # Fill with white
+            logger.debug(f"Added {len(bboxes)} redaction(s) on page {page_num + 1}.")
         except Exception as e:
-            print(f"Error adding redaction on page {page_num + 1}: {e}")
+            logger.error(f"Error adding redaction on page {page_num + 1}: {e}")
 
 
 def remove_watermarks_by_xrefs(doc: fitz.Document, image_xrefs: List[int]):
@@ -180,20 +213,65 @@ def remove_watermarks_by_xrefs(doc: fitz.Document, image_xrefs: List[int]):
         image_xrefs: A list of watermark image xrefs to remove.
     """
     if not image_xrefs:
-        print("No image watermark xrefs provided to remove.")
+        logger.debug("No image watermark xrefs provided to remove.")
         return
 
-    print("-" * 20)
-    print(f"Starting removal of {len(image_xrefs)} selected image watermark objects.")
+    logger.info(f"Starting removal of {len(image_xrefs)} image watermark(s).")
     
     name_map = map_xrefs_to_names(doc, image_xrefs)
     
     if name_map:
         clean_content_streams(doc, list(name_map.values()))
     else:
-        print("No image names found; skipping content stream cleaning.")
+        logger.warning("No image names found; skipping content stream cleaning.")
     
-    delete_objects_and_smasks(doc, image_xrefs)
-    
-    print("Image watermark removal process complete.")
-    print("-" * 20)
+    deleted = delete_objects_and_smasks(doc, image_xrefs)
+    logger.info(f"Image watermark removal complete. {deleted} object(s) deleted.")
+
+
+def clean_metadata(doc: fitz.Document):
+    """Remove sensitive metadata fields from a PDF document.
+
+    Clears Author, Creator, Producer, Subject, CreationDate, and ModDate
+    from the PDF's Info dictionary. Sets Producer to 'PDFDeWM' to indicate
+    the document has been processed.
+
+    This is useful for forensic/privacy applications where document
+    provenance information should be stripped.
+
+    Args:
+        doc: The PyMuPDF document to modify.
+    """
+    sensitive_fields = [
+        "author", "creator", "producer", "subject",
+        "creationDate", "modDate", "keywords",
+    ]
+
+    metadata = doc.metadata or {}
+    cleaned_count = 0
+
+    for field in sensitive_fields:
+        if metadata.get(field):
+            cleaned_count += 1
+
+    if cleaned_count == 0:
+        logger.info("No sensitive metadata fields found.")
+        return
+
+    # Set all sensitive fields to empty
+    new_metadata = {
+        "author": "",
+        "creator": "",
+        "producer": "PDFDeWM",
+        "subject": "",
+        "keywords": "",
+        "creationDate": "",
+        "modDate": "",
+    }
+
+    # Preserve title if present (usually not sensitive)
+    if metadata.get("title"):
+        new_metadata["title"] = metadata["title"]
+
+    doc.set_metadata(new_metadata)
+    logger.info(f"Cleaned {cleaned_count} metadata field(s). Producer set to 'PDFDeWM'.")

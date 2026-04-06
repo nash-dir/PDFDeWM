@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python (build tool)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify gcc availability
+        run: gcc --version
+
+      - name: Build portable release
+        run: python scripts/build_release.py --output-dir dist
+
+      - name: List build artifacts
+        run: Get-ChildItem -Path dist -Recurse | Format-Table Name, Length
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
