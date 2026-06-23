@@ -62,7 +62,12 @@ def map_xrefs_to_names(doc: fitz.Document, xrefs: List[int]) -> Dict[int, str]:
 
 
 def _decode_content_stream(stream_bytes: bytes) -> str:
-    """Decode a PDF content stream, trying UTF-8 first then falling back to latin-1.
+    """Decode a PDF content stream as latin-1 for byte-exact round-tripping.
+
+    Content streams are binary, not text. latin-1 maps bytes 0x00–0xFF one-to-one
+    onto U+0000–U+00FF, so decode→edit→encode preserves every byte we don't touch.
+    Decoding as UTF-8 would collapse multibyte sequences and corrupt the stream on
+    re-encode (e.g. ``b"\\xc3\\xa9"`` → ``"é"`` → ``b"\\xe9"``).
 
     Args:
         stream_bytes: Raw bytes from the content stream.
@@ -70,16 +75,14 @@ def _decode_content_stream(stream_bytes: bytes) -> str:
     Returns:
         The decoded string.
     """
-    try:
-        return stream_bytes.decode("utf-8")
-    except UnicodeDecodeError:
-        return stream_bytes.decode("latin-1")
+    return stream_bytes.decode("latin-1")
 
 
 def _encode_content_stream(stream_str: str) -> bytes:
     """Encode a content stream string back to bytes.
 
-    Uses latin-1 for maximum compatibility with PDF streams.
+    Pairs with :func:`_decode_content_stream`; latin-1 is a lossless inverse,
+    so a decoded-then-encoded stream is byte-identical to the original.
 
     Args:
         stream_str: The content stream as a string.
@@ -87,7 +90,7 @@ def _encode_content_stream(stream_str: str) -> bytes:
     Returns:
         Encoded bytes.
     """
-    return stream_str.encode("latin-1", errors="replace")
+    return stream_str.encode("latin-1")
 
 
 def clean_content_streams(doc: fitz.Document, image_names: List[str]):

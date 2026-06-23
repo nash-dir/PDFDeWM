@@ -230,11 +230,7 @@ class App(tk.Tk):
             style = ttk.Style()
             style.configure('.', font=("Malgun Gothic", 10))
             style.configure('Treeview', font=("Malgun Gothic", 10))
-        else:
-            try:
-                self.tk.call("source", "")
-            except tk.TclError:
-                pass
+        # Without sv_ttk the default ttk theme is used as-is.
 
     def _toggle_theme(self):
         """Toggle between light and dark theme."""
@@ -248,20 +244,20 @@ class App(tk.Tk):
 
     def _bind_hotkeys(self):
         """Bind keyboard shortcuts for all main actions."""
-        self.bind_all("<Control-a>", self.add_files)
-        self.bind_all("<Control-Shift-A>", self.add_folder)
-        self.bind_all("<Control-s>", self.select_output_dir)
-        self.bind_all("<Control-d>", self.start_scan)
-        self.bind_all("<Control-f>", self.start_removal)
-        self.bind_all("<Control-t>", self.on_closing)
-        self.bind_all("<Control-q>", lambda e: self._focus_and_select(self.suffix_entry))
-        self.bind_all("<Control-w>", lambda e: self._focus_and_select(self.text_keyword_entry))
-        self.bind_all("<Control-Shift-S>", self.select_output_dir)
-        self.bind_all("<Control-Shift-D>", self.start_scan)
-        self.bind_all("<Control-Shift-F>", self.start_removal)
-        self.bind_all("<Control-Shift-T>", self.on_closing)
-        self.bind_all("<Control-Shift-Q>", lambda e: self._focus_and_select(self.suffix_entry))
-        self.bind_all("<Control-Shift-W>", lambda e: self._focus_and_select(self.text_keyword_entry))
+        self.bind_all("<Alt-a>", self.add_files)
+        self.bind_all("<Alt-Shift-A>", self.add_folder)
+        self.bind_all("<Alt-s>", self.select_output_dir)
+        self.bind_all("<Alt-d>", self.start_scan)
+        self.bind_all("<Alt-f>", self.start_removal)
+        self.bind_all("<Alt-t>", self.on_closing)
+        self.bind_all("<Alt-q>", lambda e: self._focus_and_select(self.suffix_entry))
+        self.bind_all("<Alt-w>", lambda e: self._focus_and_select(self.text_keyword_entry))
+        self.bind_all("<Alt-Shift-S>", self.select_output_dir)
+        self.bind_all("<Alt-Shift-D>", self.start_scan)
+        self.bind_all("<Alt-Shift-F>", self.start_removal)
+        self.bind_all("<Alt-Shift-T>", self.on_closing)
+        self.bind_all("<Alt-Shift-Q>", lambda e: self._focus_and_select(self.suffix_entry))
+        self.bind_all("<Alt-Shift-W>", lambda e: self._focus_and_select(self.text_keyword_entry))
 
     def _focus_and_select(self, entry_widget):
         entry_widget.focus_set()
@@ -275,7 +271,8 @@ class App(tk.Tk):
             from tkinterdnd2 import DND_FILES
             self.file_listbox.drop_target_register(DND_FILES)
             self.file_listbox.dnd_bind('<<Drop>>', self._on_drop)
-        except (ImportError, Exception):
+        except Exception:
+            # tkinterdnd2 not installed or DnD unsupported — feature stays off.
             pass
 
     def _on_drop(self, event):
@@ -335,7 +332,7 @@ class App(tk.Tk):
             self.file_listbox.config(foreground="gray")
             if self.file_listbox.size() == 0:
                 self.file_listbox.insert("end", "  PDF 파일을 여기에 드래그하거나")
-                self.file_listbox.insert("end", "  [파일 추가(Ctrl+A)]를 클릭하세요")
+                self.file_listbox.insert("end", "  [파일 추가(Alt+A)]를 클릭하세요")
         else:
             self.file_listbox.config(foreground="")
 
@@ -356,11 +353,11 @@ class App(tk.Tk):
         file_button_frame = ttk.Frame(top_frame)
         file_button_frame.grid(row=0, column=0, rowspan=2, sticky="n", padx=(0, 5))
 
-        btn_add_files = ttk.Button(file_button_frame, text="파일 추가(Ctrl+A)", command=self.add_files)
+        btn_add_files = ttk.Button(file_button_frame, text="파일 추가(Alt+A)", command=self.add_files)
         btn_add_files.pack(fill="x", pady=2)
         ToolTip(btn_add_files, "PDF 파일을 선택하여 추가합니다")
 
-        btn_add_folder = ttk.Button(file_button_frame, text="폴더 추가(Ctrl+⇧A)", command=self.add_folder)
+        btn_add_folder = ttk.Button(file_button_frame, text="폴더 추가(Alt+⇧A)", command=self.add_folder)
         btn_add_folder.pack(fill="x", pady=2)
         ToolTip(btn_add_folder, "폴더 내 모든 PDF를 재귀적으로 추가합니다")
 
@@ -391,10 +388,10 @@ class App(tk.Tk):
         ttk.Label(top_frame, text="출력 폴더:").grid(row=3, column=0, sticky="w", pady=(10, 0))
         self.output_dir_entry = ttk.Entry(top_frame)
         self.output_dir_entry.grid(row=3, column=1, sticky="ew", pady=(10, 0))
-        btn_browse = ttk.Button(top_frame, text="찾아보기(Ctrl+S)", command=self.select_output_dir)
+        btn_browse = ttk.Button(top_frame, text="찾아보기(Alt+S)", command=self.select_output_dir)
         btn_browse.grid(row=3, column=2, sticky="e", pady=(10, 0), padx=(5, 0))
 
-        ttk.Label(top_frame, text="출력 접미사(Ctrl+Q):").grid(row=4, column=0, sticky="w", pady=(5, 0))
+        ttk.Label(top_frame, text="출력 접미사(Alt+Q):").grid(row=4, column=0, sticky="w", pady=(5, 0))
         self.suffix_entry = ttk.Entry(top_frame, textvariable=self.suffix_var)
         self.suffix_entry.grid(row=4, column=1, sticky="ew", pady=(5, 0))
 
@@ -414,7 +411,7 @@ class App(tk.Tk):
         self.threshold_spinbox.pack(side="left")
         ToolTip(self.threshold_spinbox, "이미지가 전체 페이지의 N% 이상에 나타나면 워터마크로 판별합니다")
 
-        ttk.Label(options_container, text="텍스트 키워드(Ctrl+W, ';'로 구분):").grid(
+        ttk.Label(options_container, text="텍스트 키워드(Alt+W, ';'로 구분):").grid(
             row=1, column=0, sticky="w", pady=(5, 0)
         )
         self.text_keyword_entry = ttk.Entry(options_container, textvariable=self.text_keywords_var)
@@ -436,12 +433,12 @@ class App(tk.Tk):
         left_action_frame.pack(side="left")
 
         self.scan_button = ttk.Button(
-            left_action_frame, text="스캔(Ctrl+D)", command=self.start_scan
+            left_action_frame, text="스캔(Alt+D)", command=self.start_scan
         )
         self.scan_button.pack(side="left", padx=(0, 2))
 
         self.remove_button = ttk.Button(
-            left_action_frame, text="워터마크 제거(Ctrl+F)",
+            left_action_frame, text="워터마크 제거(Alt+F)",
             command=self.start_removal, state="disabled"
         )
         self.remove_button.pack(side="left", padx=2)
@@ -525,6 +522,13 @@ class App(tk.Tk):
         self.candidate_count_label = ttk.Label(select_bar, text="", foreground="gray")
         self.candidate_count_label.pack(side="left")
 
+        self.one_page_warning_label = ttk.Label(
+            select_bar, text="⚠️ 1페이지 문서입니다. (1페이지 문서의 모든 이미지는 워터마크로 탐지됩니다.)", 
+            foreground="red", font=("TkDefaultFont", 9, "bold")
+        )
+        self.one_page_warning_label.pack(side="left", padx=(10, 0))
+        self.one_page_warning_label.pack_forget()
+
         btn_invert = ttk.Button(select_bar, text="선택 반전", command=self._invert_selection)
         btn_invert.pack(side="right", padx=2)
         btn_deselect = ttk.Button(select_bar, text="전체 해제", command=self._deselect_all)
@@ -552,6 +556,31 @@ class App(tk.Tk):
         self.canvas.bind(
             "<Configure>", lambda e: self.canvas.itemconfig(self.canvas_window, width=e.width - 8)
         )
+
+        def _on_mousewheel(event):
+            if sys.platform == "darwin":
+                self.canvas.yview_scroll(int(-1*(event.delta)), "units")
+            else:
+                self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+
+        def _on_mousewheel_up(event):
+            self.canvas.yview_scroll(-1, "units")
+
+        def _on_mousewheel_down(event):
+            self.canvas.yview_scroll(1, "units")
+
+        def _bind_to_mousewheel(event):
+            self.canvas.bind_all("<MouseWheel>", _on_mousewheel)
+            self.canvas.bind_all("<Button-4>", _on_mousewheel_up)
+            self.canvas.bind_all("<Button-5>", _on_mousewheel_down)
+
+        def _unbind_from_mousewheel(event):
+            self.canvas.unbind_all("<MouseWheel>")
+            self.canvas.unbind_all("<Button-4>")
+            self.canvas.unbind_all("<Button-5>")
+
+        left_pane.bind("<Enter>", _bind_to_mousewheel)
+        left_pane.bind("<Leave>", _unbind_from_mousewheel)
 
         # Right: Preview panel
         right_pane = ttk.Labelframe(paned, text="미리보기", padding=5)
@@ -1010,8 +1039,11 @@ class App(tk.Tk):
         # Separate image and text candidates
         image_candidates = {}
         text_groups: Dict[Tuple[str, str], List[Tuple]] = defaultdict(list)
+        has_1_page = False
 
         for key, data in self.raw_candidates.items():
+            if data.get('total_pages', 0) == 1:
+                has_1_page = True
             ctype = key[0]
             if ctype == 'image':
                 # Image: group by (file, xref)
@@ -1049,16 +1081,25 @@ class App(tk.Tk):
             pages = sorted(set(
                 self.raw_candidates[k].get('page', 0) for k in member_keys
             ))
+            first_k = list(member_keys)[0]
+            full_text = self.raw_candidates[first_k].get('full_text', text_content)
+            
             group = {
                 'type': 'text',
                 'var': var,
                 'member_keys': list(member_keys),
                 'text': text_content,
+                'full_text': full_text,
                 'pages': pages,
                 'page_count': len(pages),
                 'source': Path(file_path).name,
             }
             self.display_groups.append(group)
+
+        if has_1_page:
+            self.one_page_warning_label.pack(side="left", padx=(10, 0))
+        else:
+            self.one_page_warning_label.pack_forget()
 
         # Render
         for group in self.display_groups:
@@ -1095,7 +1136,14 @@ class App(tk.Tk):
             img_label.pack(side="left")
             img_label.bind("<Button-1>", lambda e, g=group: self._show_preview(g))
         elif group['type'] == 'text':
-            display_text = group['text'][:25] + ('...' if len(group['text']) > 25 else '')
+            full_text = group.get('full_text', group['text'])
+            idx = full_text.find(group['text'])
+            if idx != -1:
+                display_text = full_text[idx:].replace('\n', ' ')
+            else:
+                display_text = full_text.replace('\n', ' ')
+            
+            display_text = display_text[:40] + ('...' if len(display_text) > 40 else '')
             photo = self.thumbnail_manager.create_text_thumbnail(display_text)
             group['img_obj'] = photo
             img_label = ttk.Label(item_frame, image=photo, cursor="hand2")

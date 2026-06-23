@@ -1,5 +1,12 @@
 # PDFDeWM - PDF Watermark Remover
 
+[![Release](https://img.shields.io/github/v/release/nash-dir/PDFDeWM)](https://github.com/nash-dir/PDFDeWM/releases)
+[![CI](https://github.com/nash-dir/PDFDeWM/actions/workflows/ci.yml/badge.svg)](https://github.com/nash-dir/PDFDeWM/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/nash-dir/PDFDeWM)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
+
+![PDFDeWM GUI](docs/gui.png)
+
 ## Overview
 
 PDF Watermark Remover is a desktop GUI and CLI tool designed to easily remove image-based and text-based watermarks from PDF files.
@@ -10,7 +17,7 @@ This program intelligently identifies images that appear commonly across multipl
 
 * **Intuitive GUI**: Built with Tkinter for a simple and effective user experience.
 * **CLI Batch Mode**: Process multiple PDFs from the command line without a GUI.
-* **Intelligent Watermark Detection**: Multiple strategies — commonality, transparency (SMask), text keyword, and text position.
+* **Intelligent Watermark Detection**: The scan combines image *commonality* (images repeated across most pages) with *text keyword* matching. Additional detection strategies — transparency (SMask), repeated text position, and vector-pattern — are available in the `identifier` module for programmatic use.
 * **Visual Confirmation**: Allows users to visually inspect and select which candidates to remove.
 * **Flexible File Handling**: Supports processing single files, multiple files, or all PDFs in a folder.
 * **Safe Operation**: Creates new files with watermarks removed, leaving the original files untouched.
@@ -64,13 +71,6 @@ Requires **Python 3.10+**.
     python GUI.py
     ```
 
-### Option C: Build Release Locally
-
-```bash
-# Requires Python 3.10+ and gcc (MinGW)
-python scripts/build_release.py --output-dir dist
-```
-
 3.  **(Optional) Install Development Dependencies**
     ```
     pip install ".[dev]"
@@ -80,6 +80,13 @@ python scripts/build_release.py --output-dir dist
     ```
     pip install ".[dnd]"
     ```
+
+### Option C: Build Release Locally
+
+```bash
+# Requires Python 3.10+ and gcc (MinGW)
+python scripts/build_release.py --output-dir dist
+```
 
 ## How to Use
 
@@ -93,21 +100,21 @@ python scripts/build_release.py --output-dir dist
     ```
 
 2.  **Add Files & Set Options**
-    * Click **"Add Files"** (`Ctrl+A`) or **"Add Folder"** (`Ctrl+Shift+A`) to select input files.
+    * Click **"Add Files"** (`Alt+A`) or **"Add Folder"** (`Alt+Shift+A`) to select input files.
     * **Drag & Drop** PDF files or folders directly onto the file list.
-    * Click **"Browse"** (`Ctrl+S`) to select an Output folder.
-    * Designate **"Output Suffix"** (`Ctrl+Q`) to concatenate after the original filename.
+    * Click **"Browse"** (`Alt+S`) to select an Output folder.
+    * Designate **"Output Suffix"** (`Alt+Q`) to concatenate after the original filename.
     * Check **"Copy unprocessed files"** to copy unprocessed files in the batch to the Output directory.
     * Check **"Overwrite existing files"** to overwrite existing files.
     * **⚠️ Be careful if "Output Suffix" is blank and "Overwrite existing files" is checked.**
 
 3.  **Scan for Watermarks**
-    * Click **"Scan Selected Files"** (`Ctrl+D`).
+    * Click **"Scan Selected Files"** (`Alt+D`).
     * Adjust **"Scan Threshold"** to set the detection sensitivity.
 
 4.  **Select and Remove**
     * Uncheck any images you do not want to remove.
-    * Click **"Run Watermark Removal"** (`Ctrl+F`).
+    * Click **"Run Watermark Removal"** (`Alt+F`).
     * Use **"Cancel"** to abort if needed.
     * Click **"Open Output Folder"** to view results.
 
@@ -148,14 +155,14 @@ python cli.py --help
 
 | Action | Shortcut | Description |
 | :--- | :--- | :--- |
-| **Add Files** | `Ctrl+A` | Open file selection dialog. |
-| **Add Folder** | `Ctrl+Shift+A` | Open folder selection dialog. |
-| **Browse Output Folder** | `Ctrl+S` / `Ctrl+Shift+S` | Open the output folder selection dialog. |
-| **Scan Selected Files** | `Ctrl+D` / `Ctrl+Shift+D` | Start the watermark identification scan. |
-| **Run Watermark Removal** | `Ctrl+F` / `Ctrl+Shift+F` | Start the removal process. |
-| **Close Application** | `Ctrl+T` / `Ctrl+Shift+T` | Exit the program. |
-| **Focus Output Suffix** | `Ctrl+Q` / `Ctrl+Shift+Q` | Move cursor to the Output Suffix field. |
-| **Focus Text Keywords** | `Ctrl+W` / `Ctrl+Shift+W` | Move cursor to the Text Keywords field. |
+| **Add Files** | `Alt+A` | Open file selection dialog. |
+| **Add Folder** | `Alt+Shift+A` | Open folder selection dialog. |
+| **Browse Output Folder** | `Alt+S` / `Alt+Shift+S` | Open the output folder selection dialog. |
+| **Scan Selected Files** | `Alt+D` / `Alt+Shift+D` | Start the watermark identification scan. |
+| **Run Watermark Removal** | `Alt+F` / `Alt+Shift+F` | Start the removal process. |
+| **Close Application** | `Alt+T` / `Alt+Shift+T` | Exit the program. |
+| **Focus Output Suffix** | `Alt+Q` / `Alt+Shift+Q` | Move cursor to the Output Suffix field. |
+| **Focus Text Keywords** | `Alt+W` / `Alt+Shift+W` | Move cursor to the Text Keywords field. |
 | **Remove Selected File** | `Delete` / `Backspace` | Remove the selected file(s) from the queue. |
 | **Open Selected File** | `Double-Click` / `Enter` | Open the selected file in the default viewer. |
 

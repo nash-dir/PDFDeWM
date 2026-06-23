@@ -13,13 +13,13 @@ from tests.conftest import FakeDocument, FakePage
 class TestDecodeContentStream:
     """Tests for stream encoding/decoding helpers."""
 
-    def test_utf8_decode(self):
-        """Should decode valid UTF-8 bytes."""
+    def test_ascii_decode(self):
+        """Should decode plain ASCII bytes."""
         result = editor._decode_content_stream(b"Hello World")
         assert result == "Hello World"
 
-    def test_latin1_fallback(self):
-        """Should fall back to latin-1 for non-UTF-8 bytes."""
+    def test_high_bytes_decode(self):
+        """Should decode arbitrary high bytes (latin-1, never raises)."""
         result = editor._decode_content_stream(b"\xff\xfe")
         assert isinstance(result, str)
 
@@ -29,6 +29,24 @@ class TestDecodeContentStream:
         encoded = editor._encode_content_stream(original)
         assert isinstance(encoded, bytes)
         assert b"/Im1" in encoded
+
+    def test_byte_exact_roundtrip_all_bytes(self):
+        """decode→encode must reproduce every byte value exactly."""
+        original = bytes(range(256))
+        assert editor._encode_content_stream(
+            editor._decode_content_stream(original)
+        ) == original
+
+    def test_utf8_multibyte_not_corrupted(self):
+        """Bytes that form valid UTF-8 must survive a round-trip unchanged.
+
+        Regression: decoding as UTF-8 then re-encoding as latin-1 used to turn
+        ``b"\\xc3\\xa9"`` into ``b"\\xe9"``, corrupting the stream.
+        """
+        original = b"q /Im1 Do Q caf\xc3\xa9 stream"
+        assert editor._encode_content_stream(
+            editor._decode_content_stream(original)
+        ) == original
 
 
 class TestCleanContentStreams:

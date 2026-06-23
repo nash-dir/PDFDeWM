@@ -308,11 +308,15 @@ class ThumbnailManager:
             A Tkinter PhotoImage object.
         """
         img_copy = pil_img.copy()
+        if img_copy.mode in ('RGBA', 'LA') or (img_copy.mode == 'P' and 'transparency' in img_copy.info):
+            bg = Image.new('RGB', img_copy.size, (255, 255, 255))
+            bg.paste(img_copy, (0, 0), img_copy.convert('RGBA'))
+            img_copy = bg
         img_copy.thumbnail(size, Image.Resampling.LANCZOS)
         return ImageTk.PhotoImage(img_copy)
 
     def create_text_thumbnail(
-        self, text: str, size: Tuple[int, int] = (200, 50)
+        self, text: str, size: Tuple[int, int] = (280, 50)
     ) -> ImageTk.PhotoImage:
         """Creates a Tkinter-compatible thumbnail image from a text string.
 
@@ -334,7 +338,7 @@ class ThumbnailManager:
         font = get_font_for_text(text, 15)
 
         # Truncate text if it's too long for the thumbnail
-        display_text = (text[:25] + '…') if len(text) > 25 else text
+        display_text = (text[:40] + '…') if len(text) > 40 else text
         display_text = display_text.replace('\n', ' ')
 
         # Draw with detected font

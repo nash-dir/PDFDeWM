@@ -6,14 +6,14 @@ build-backend = "setuptools.build_meta"
 # --- Project Metadata ---
 [project]
 name = "pdfdewm"
-version = "1.4.0"
+version = "1.4.1"
 authors = [
   { name="nash-dir", email="nashdir.dev@gmail.com" },
 ]
 description = "A GUI/CLI tool to easily remove watermarks from PDF files."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { file="license.txt" } 
+license = { file="LICENSE" }
 keywords = ["pdf", "watermark", "remove", "gui", "cli", "tkinter", "PyMuPDF", "Pillow"]
 # Classifiers for PyPI
 classifiers = [
@@ -58,7 +58,7 @@ full = [
 "Homepage" = "https://github.com/nash-dir/PDFDeWM"
 "Repository" = "https://github.com/nash-dir/PDFDeWM"
 "Bug Tracker" = "https://github.com/nash-dir/PDFDeWM/issues"
-"Changelog" = "https://github.com/nash-dir/PDFDeWM/blob/main/CHANGELOG.md"
+"Changelog" = "https://github.com/nash-dir/PDFDeWM/blob/master/CHANGELOG.md"
 
 # --- Console Scripts ---
 [project.scripts]
@@ -78,7 +78,7 @@ py-modules = [
 
 # --- Ruff Configuration ---
 [tool.ruff]
-target-version = "1.4.0"
+target-version = "py310"
 line-length = 120
 
 [tool.ruff.lint]

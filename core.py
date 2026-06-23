@@ -107,7 +107,8 @@ def scan_files_for_watermarks(
                         'type': 'image',
                         'pil_img': pil_img,
                         'xref': xref,
-                        'source': Path(file_path).name
+                        'source': Path(file_path).name,
+                        'total_pages': len(doc)
                     }
 
             # 2. Find text watermarks by keywords (delegated to identifier)
@@ -122,7 +123,8 @@ def scan_files_for_watermarks(
                             'full_text': match['full_text'],
                             'page': match['page'],
                             'bbox': match['bbox'],
-                            'source': Path(file_path).name
+                            'source': Path(file_path).name,
+                            'total_pages': len(doc)
                         }
 
         except Exception as e:

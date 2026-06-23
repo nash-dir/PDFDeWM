@@ -38,6 +38,11 @@ from typing import Any, Dict, List, Optional, Tuple
 import core
 from models import MAX_FILE_SIZE_BYTES
 
+try:
+    from __init__ import __version__ as APP_VERSION
+except Exception:  # pragma: no cover - fallback if run outside package layout
+    APP_VERSION = "unknown"
+
 logger = logging.getLogger("pdfdewm")
 
 
@@ -146,7 +151,7 @@ def _build_report(
     copied = sum(1 for r in file_results if r["status"] == "copied")
 
     return {
-        "version": "1.3.0",
+        "version": APP_VERSION,
         "timestamp": datetime.now(timezone.utc).astimezone().isoformat(),
         "input": args.input,
         "output": args.output,

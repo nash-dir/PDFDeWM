@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-06-23
+
+### Fixed
+- **Content stream corruption**: PDF content streams are now decoded/encoded with latin-1 consistently. Streams that happened to be valid UTF-8 could previously be corrupted on re-encode during image watermark removal.
+- **CI never ran**: the CI workflow triggered on `main`, but the default branch is `master`; corrected so push/PR actually run lint + tests.
+- **Invalid ruff config**: `[tool.ruff] target-version` was set to the project version; corrected to `py310`.
+- **CLI report version**: the JSON report now reports the package version instead of a stale hardcoded `1.3.0`.
+- **License detection**: renamed `license.txt` → `LICENSE` so GitHub recognises GPL-3.0 (previously NOASSERTION); `pyproject.toml` updated to match.
+
+### Changed
+- **README**: added status badges (release, CI, license, Python), wired in a GUI screenshot, corrected keyboard shortcuts to the actual `Alt`-based bindings, fixed the misplaced source-install steps, and clarified which detection strategies the scan runs by default vs. which are available programmatically.
+- `requirements.txt` pinned to match `pyproject.toml` dependencies.
+- Removed unused placeholder dataclasses from `models.py`.
+
 ## [1.4.0] - 2026-04-06
 
 ### Added
